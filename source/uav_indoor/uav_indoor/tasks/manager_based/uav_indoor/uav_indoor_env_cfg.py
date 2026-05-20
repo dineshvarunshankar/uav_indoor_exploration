@@ -37,7 +37,7 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
     # room
     environment = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Environment",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0), rot=(1.0,0.0, 0.0, 0.0)),
         spawn=sim_utils.UsdFileCfg(usd_path=scene_usd),
     )
 
