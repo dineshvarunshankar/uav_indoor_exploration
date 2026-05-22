@@ -38,16 +38,14 @@ STARLING2_CFG = ArticulationCfg(
         copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.5), #spawn position of robot root
+        
+        pos=(0.0, 0.0, 1.0),
+        rot=(1.0, 0.0, 0.0, 0.0),
         joint_pos={
             ".*": 0.0,
         },
-        #at every reset, the joints start at below velocities(rad/s)
         joint_vel={
-            "joint0": 200.0,
-            "joint1": -200.0,
-            "joint2": 200.0,
-            "joint3": -200.0,
+            ".*": 0.0,
         },
     ),
     actuators={

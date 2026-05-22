@@ -37,7 +37,10 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
     # room
     environment = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Environment",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0), rot=(1.0,0.0, 0.0, 0.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0),
+            rot=(1.0, 0.0, 0.0, 0.0),
+        ),
         spawn=sim_utils.UsdFileCfg(usd_path=scene_usd),
     )
 
@@ -102,19 +105,19 @@ class ObservationsCfg:
 class EventCfg:
     """Reset events."""
 
-    # Randomize drone pose (position/orientation/velocity) around defaults in starling_2.py
+     #Randomize drone pose (position/orientation/velocity) around defaults in starling_2.py
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (0.0, 0.3),          # extra height on top of init_state.pos z
-                "roll": (-0.1, 0.1),
-                "pitch": (-0.1, 0.1),
-                "yaw": (-3.14, 3.14),
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+                "roll": (0.0, 0.0),
+                "pitch": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
             },
             "velocity_range": {
                 "x": (0.0, 0.0),
