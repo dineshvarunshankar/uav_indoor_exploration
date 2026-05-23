@@ -29,11 +29,11 @@ from uav_indoor.assets.starling_2.starling_2 import STARLING2_CFG
 ##
 # Scene definition
 ##
-scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu/Public/AirStack/scenes/urban/abandoned_city/After_the_rain...usdz"
+scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Library/Stages/ConstructionSite/ConstructionSite.stage.usd"
 
 @configclass
 class UavIndoorSceneCfg(InteractiveSceneCfg):
-    """Configuration for a cart-pole scene."""
+    """Configuration for a ConstructionSite scene."""
     # room
     environment = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Environment",
@@ -41,22 +41,24 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
             pos=(0.0, 0.0, 0.0),
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
+        #prim_path="/World/ConstructionSite",   # single instance
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         spawn=sim_utils.UsdFileCfg(usd_path=scene_usd),
     )
 
-    # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    # # ground plane
+    # ground = AssetBaseCfg(
+    #     prim_path="/World/ground",
+    #     spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
     # robot
     robot: ArticulationCfg = STARLING2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    # dome_light = AssetBaseCfg(
+    #     prim_path="/World/DomeLight",
+    #     spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 
 
