@@ -50,7 +50,7 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
     # ground = AssetBaseCfg(
     #     prim_path="/World/ground",
     #     spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
-    )
+    # )
 
     # robot
     robot: ArticulationCfg = STARLING2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -59,7 +59,7 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
     # dome_light = AssetBaseCfg(
     #     prim_path="/World/DomeLight",
     #     spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
-    )
+    # )
 
 
 ##
@@ -109,37 +109,47 @@ class EventCfg:
 
      #Randomize drone pose (position/orientation/velocity) around defaults in starling_2.py
     reset_base = EventTerm(
-        func=mdp.reset_root_state_uniform,
+        func=mdp.reset_spawn_position,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pose_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
+            # Position is defined usingspawn_zones.yaml inside the function
+            # Orientations (radians)
+            "roll_range": (-0.1745, 0.1745),   # +/- 10 degrees
+            "pitch_range": (-0.1745, 0.1745),  # +/- 10 degrees
+            "yaw_range": (-3.14159, 3.14159),  # Full 360 degrees
+            
+            # Velocities 
             "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
+                "x": (-3.0, 3.0),      # 3 m/s forward/backward
+                "y": (-3.0, 3.0),      # 3 m/s left/right
+                "z": (-1.0, 1.0),      # 1 m/s up/down
+                "roll": (-1.745, 1.745),   # 100 deg/s roll rate
+                "pitch": (-1.745, 1.745),  # 100 deg/s pitch rate
+                "yaw": (-0.698, 0.698),    # 40 deg/s yaw rate
             },
         },
     )
 
-    # Props: no random angle/spin at reset
-    reset_rotor_joints = EventTerm(
+    # Propellers
+    # Rotors 0 and 1 (Counter-Clockwise - Positive Spin)
+    reset_rotor_joints_ccw = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint0", "joint1", "joint2", "joint3"]),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint0", "joint1"]), 
             "position_range": (0.0, 0.0),
-            "velocity_range": (0.0, 0.0),
+            "velocity_range": (900.0, 1100.0),
+        },
+    )
+
+    # Rotors 2 and 3 (Clockwise - Negative Spin)
+    reset_rotor_joints_cw = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint2", "joint3"]), 
+            "position_range": (-1100.0, -900.0), 
         },
     )
 
