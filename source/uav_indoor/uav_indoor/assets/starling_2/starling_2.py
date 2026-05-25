@@ -39,7 +39,7 @@ STARLING2_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         
-        pos=(4852.0, -2987.0, 35.5), # w.r.t scene origin
+        pos=(48.52, -38.906, 0.855), 
         rot=(1.0, 0.0, 0.0, 0.0),
         joint_pos={
             ".*": 0.0,

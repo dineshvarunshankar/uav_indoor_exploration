@@ -29,20 +29,30 @@ from uav_indoor.assets.starling_2.starling_2 import STARLING2_CFG
 ##
 # Scene definition
 ##
-scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Library/Stages/ConstructionSite/ConstructionSite.stage.usd"
+sky_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite/sky.usd"
+scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite/constructionsite.usd"
 
 @configclass
 class UavIndoorSceneCfg(InteractiveSceneCfg):
     """Configuration for a ConstructionSite scene."""
-    # room
-    environment = AssetBaseCfg(
+
+    #sky
+    sky = AssetBaseCfg(
+        prim_path="/World/Sky",
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0),
+            #rot=(1.0, 0.0, 0.0, 0.0),
+        ),
+        spawn=sim_utils.UsdFileCfg(usd_path=sky_usd),
+    )
+    # scene
+    scene = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Environment",
+        # prim_path="/World/ConstructionSite",   # single instance
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.0),
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
-        #prim_path="/World/ConstructionSite",   # single instance
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         spawn=sim_utils.UsdFileCfg(usd_path=scene_usd),
     )
 
@@ -149,7 +159,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["joint2", "joint3"]), 
-            "position_range": (-1100.0, -900.0), 
+            "position_range": (0.0, 0.0),
+            "velocity_range": (-1100.0, -900.0), 
         },
     )
 

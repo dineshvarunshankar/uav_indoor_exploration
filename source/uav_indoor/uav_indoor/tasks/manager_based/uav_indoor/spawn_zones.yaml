@@ -1,24 +1,24 @@
 # [x_min, y_min, x_max, y_max, z] positions indiacted are w.r.t to top view
 zones:
-  - [315.81046,-1429.53278, 6182.45423, -832.92494, 59.0] #center corridor - ground level
-  - [-174.36655,-1834.10449, 6324.20588,-369.46412, 565.5] #center corridor -  height level 1
-  - [-1591.0988, -4677.22993, 5387.48181, -375.61807, 1808.0 ] #center corrdior - height level 2
-  - [-4069.93885, -5946.23519, 5371.95039, -329.57563, 3907.80] #center corrdior - height level 3
-  - [-3527.35211, -1452.42336,-2274.21651, -756.73242, 179.0] #bottom corridor - height level 1 
-  - [-4312.2342, -2660.96339, -887.29419, 2012.65267, 683.20] #bottom corridor - height level 2
-  - [-4208.6384, -6128.10989, -658.54609, 2056.18893, 2722.5] #bottom corridor - height level 3
-  - [-4145.80182, -2117.85633, -3097.05126, -1838.18951, 109.15] #bottom right corridor - height level 1 (not covered in bottom corridor - height level 1)
-  - [-4140.48719, -463.00901, -3649.95888, 291.21369, 55.0] #bottom left corridor - height level 1 (not covered in bottom corridor - height level 1)
-  - [-521.2081, 2035.65127, 433.49607, 2743.23965, 280.0] #center left space between the buildings - height level 1
-  - [-521.2081, 2035.65127, 433.49607, 2743.23965, 1617.0] #center left space between the buildings - height level 2
-  - [-521.2081, 2035.65127, 433.49607, 2743.23965, 2906.5] #center left space between the buildings - height level 3
-  - [5913.90671, 48.99104, 7227.12496, 540.39273, 70.35] # top left space between buildings - height level 1
-  - [5724.38037, 123.74896, 7499.02165, 1777.57778, 630.67224] # top left space between buildings - height level 2
-  - [5724.38037, 123.74896, 7499.02165, 1777.57778, 1736.30763] # top left space between buildings - height level 3
-  - [4697.79383, -6885.7332, 5686.9361, -4972.15891, 124.29166] # top right corridor - height level 1
-  - [4451.8597, -7890.20729, 5518.86603, -3768.57003, 542.15623] #top right corridor - height level 2
-  - [2741.12219, -8581.8439, 5518.86603, -1973.33066, 2208.33323] #top right corridor - height level 2
-  - [5557.33906, -7516.2006, 8132.74361, -6863.64352, 510.4845] #top right extreme corridor - height level 1
-  - [-1459.08725, -5677.35019, -415.04722, -5333.74208, 51.0] #bottom right corridor - height level 1
-  - [-2206.37947, -6197.27546, 1483.39258, -4614.75472, 744.10653] #bottom right corridor - height level 2
-  - [-2231.758, -6176.80667, 3539.99379, -2455.625, 1525.8374] #bottom right corridor - height level 3
+  - [3.15810, -23.33133, 61.82454, -17.36525, 1.09000] #center corridor - ground level
+  - [-1.74367, -27.37704, 63.24206, -12.73064, 6.15500] #center corridor -  height level 1
+  - [-15.91099, -55.80830, 53.87482, -12.79218, 18.58000] #center corrdior - height level 2
+  - [-40.69939, -68.49835, 53.71950, -12.33176, 39.57800] #center corrdior - height level 3
+  - [-35.27352, -23.56023, -22.74217, -16.60332, 2.29000] #bottom corridor - height level 1 
+  - [-43.12234, -35.64563, -8.87294, 11.09053, 7.33200] #bottom corridor - height level 2
+  - [-42.08638, -70.31710, -6.58546, 11.52589, 27.72500] #bottom corridor - height level 3
+  - [-41.45802, -30.21456, -30.97051, -27.41790, 1.59150] #bottom right corridor - height level 1 (not covered in bottom corridor - height level 1)
+  - [-41.40487, -13.66609, -36.49959, -6.12386, 1.05000] #bottom left corridor - height level 1 (not covered in bottom corridor - height level 1)
+  - [-5.21208, 11.32051, 4.33496, 18.39640, 3.30000] #center left space between the buildings - height level 1
+  - [-5.21208, 11.32051, 4.33496, 18.39640, 16.67000] #center left space between the buildings - height level 2
+  - [-5.21208, 11.32051, 4.33496, 18.39640, 29.56500] #center left space between the buildings - height level 3
+  - [59.13907, -8.54609, 72.27125, -3.63207, 1.20350] # top left space between buildings - height level 1
+  - [57.24380, -7.79851, 74.99022, 8.73978, 6.80672] # top left space between buildings - height level 2
+  - [57.24380, -7.79851, 74.99022, 8.73978, 17.86308] # top left space between buildings - height level 3
+  - [46.97794, -77.89333, 56.86936, -58.75759, 1.74292] # top right corridor - height level 1
+  - [44.51860, -87.93807, 55.18866, -46.72170, 5.92156] #top right corridor - height level 2
+  - [27.41122, -94.85444, 55.18866, -28.76931, 22.58333] #top right corridor - height level 2
+  - [55.57339, -84.19801, 81.32744, -77.67244, 5.60485] #top right extreme corridor - height level 1
+  - [-14.59087, -65.80950, -4.15047, -62.37342, 1.01000] #bottom right corridor - height level 1
+  - [-22.06379, -71.00875, 14.83393, -55.18355, 7.94107] #bottom right corridor - height level 2
+  - [-22.31758, -70.80407, 35.39994, -33.59225, 15.75837] #bottom right corridor - height level 3
