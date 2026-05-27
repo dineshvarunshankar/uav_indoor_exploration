@@ -10,6 +10,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
 _spawn_yaml = Path(__file__).resolve().parent.parent / "spawn_zones.yaml"
+_openings_yaml = Path(__file__).resolve().parent.parent / "openings.yaml"
 
 
 #load spawn zones
@@ -80,3 +81,34 @@ def reset_spawn_position(
     #write to sim
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+#load openings
+def load_openings(path: Path | None = None) -> torch.tensor:
+    """Load openings as (N, 3) tensor: x, y, z in meters."""
+    path = path or _openings_yaml
+    with open(path) a f:
+        data = yaml.safe_load(f)
+    openings = [o["pos"] for o in data["openings"]]
+    return torch.tensor(rows, dtype=torch.float32)
+
+global_openings = load_openings()
+
+def _ensure_opening_target_buffer(
+    env:ManagerBasedEnv,
+    device:torch.device,
+) -> torch.Tensor:
+    if not hasattr(env, "opening_target_env"):
+        env.opening_target_env = torch.zeros(env.num_envs, 3, device=device)
+    return env.opening_target_env
+
+def reset_opening_target(
+    env:ManagerBasedEnv,
+    env_ids:torch.Tensor,
+    openings:torch.Tensor | None = None,
+):
+    openings = openings if openings is not None else global_openings
+    openings = openings.to(device=env.device)
+    target = _ensure_openings_target_buffer(env, env.device)
+    idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
+    target[env_ids] = openings[idx]

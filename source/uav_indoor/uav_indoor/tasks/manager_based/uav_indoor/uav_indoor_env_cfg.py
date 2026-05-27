@@ -96,7 +96,8 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        base_pos_z = ObsTerm(func=mdp.base_pos_z)
+        root_pos_w = ObsTerm(func=mdp.root_pos_w)
+        #base_pos_z = ObsTerm(func=mdp.base_pos_z)
 
         #rotors
         #joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
@@ -104,6 +105,9 @@ class ObservationsCfg:
 
         #prev actions
         last_action = ObsTerm(func=mdp.last_action)
+
+        #opening target
+        target_offset_body = ObsTerm(func=mdp.target_offset_body)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -162,6 +166,12 @@ class EventCfg:
             "position_range": (0.0, 0.0),
             "velocity_range": (-1100.0, -900.0), 
         },
+    )
+
+    #reset opening target
+    reset_opening_target = EventTerm(
+        func=mdp.reset_opening_target,
+        mode="reset",
     )
 
     # reset_pole_position = EventTerm(
