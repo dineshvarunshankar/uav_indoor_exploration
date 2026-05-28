@@ -16,6 +16,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
+from isaaclab.sensors import TiledCameraCfg, RuntimeSensorNoiseCfg
+from isaaclab.utils.noise import GaussianNoiseCfg
 
 from . import mdp
 
@@ -64,6 +66,16 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
 
     # robot
     robot: ArticulationCfg = STARLING2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    #tof camera ModalAI VOXL 2 ToF (M0178)
+    tof_camera = TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/TOF_Camera",
+        spawn=None, #already defined in USD
+        width=240,
+        height=180,
+        data_types=["distance_to_camera"],
+        update_period=0.03,
+        depth_clipping_behavior="zero",
+    )
 
     # lights
     # dome_light = AssetBaseCfg(
@@ -81,7 +93,14 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["joint0", "joint1", "joint2", "joint3"], scale=1.0)
+    # joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["joint0", "joint1", "joint2", "joint3"], scale=1.0)
+    px4_velocity = mdp.PX4VelocityActionCfg(
+        asset_name="robot", 
+        joint_names=["joint0", "joint1", "joint2", "joint3"], 
+        v_max_xy=3.0,
+        v_max_z=1.0,
+        yaw_rate_max=2.618,
+        motor_scale=1.0)
 
 
 @configclass
@@ -89,7 +108,7 @@ class ObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class PolicyCfg(ObsGroup):
+    class ProprioCfg(ObsGroup):
         """Observations for policy group."""
 
         # body
@@ -109,12 +128,27 @@ class ObservationsCfg:
         #opening target
         target_offset_body = ObsTerm(func=mdp.target_offset_body)
 
+
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
+    @configclass
+    class TofCfg(ObsGroup):
+        tof_depth = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("tof_camera"),
+                "data_type": "distance_to_camera",
+                "normalize": True,
+            }
+        )
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    proprio: ProprioCfg = ProprioCfg()
+    tof: TofCfg = TofCfg()
 
 
 @configclass
