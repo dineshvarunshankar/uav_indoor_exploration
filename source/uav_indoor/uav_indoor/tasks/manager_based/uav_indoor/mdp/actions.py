@@ -73,15 +73,15 @@ class PX4VelocityAction(ActionTerm):
         data = self._asset.data
         dt = self._env.physics_dt
 
-        vel_b = self._processed_actions[:, :3]
-        vel_w = math.utils.quat_apply(quat, vel_b)
-        actions_w = torch.cat([vel_w, self._processed_actions[:, 3:4]], dim=-1)
-        actions_np = actions_w.detach().cpu().numpy()
-
         pos = data.root_pos_w.detach().cpu().numpy()
         vel = data.root_lin_vel_w.detach().cpu().numpy()
         ang_vel = data.root_ang_vel_w.detach().cpu().numpy()
         quat = data.root_quat_w.detach().cpu().numpy()
+
+        vel_b = self._processed_actions[:, :3]
+        vel_w = math_utils.quat_apply(quat, vel_b)
+        actions_w = torch.cat([vel_w, self._processed_actions[:, 3:4]], dim=-1)
+        actions_np = actions_w.detach().cpu().numpy()
         
         self._px4.set_status(pos, quat, vel, ang_vel, dt)
         motor_np = self._px4.update(actions_np)

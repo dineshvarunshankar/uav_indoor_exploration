@@ -31,8 +31,8 @@ from uav_indoor.assets.starling_2.starling_2 import STARLING2_CFG
 ##
 # Scene definition
 ##
-sky_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite/sky.usd"
-scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite/constructionsite.usd"
+sky_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite_custom/Collected_ConstructionSite.stage/sky.usd"
+scene_usd = "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/ConstructionSite_custom/Collected_ConstructionSite.stage/ConstructionSite.stage.usd"
 
 @configclass
 class UavIndoorSceneCfg(InteractiveSceneCfg):
@@ -187,7 +187,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["joint0", "joint1"]), 
             "position_range": (0.0, 0.0),
-            "velocity_range": (900.0, 1100.0),
+            "velocity_range": (0,0),#(900.0, 1100.0),
         },
     )
 
@@ -198,7 +198,7 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=["joint2", "joint3"]), 
             "position_range": (0.0, 0.0),
-            "velocity_range": (-1100.0, -900.0), 
+            "velocity_range": (0,0),#(-1100.0, -900.0), 
         },
     )
 
@@ -224,7 +224,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    alive = RewTerm(func=mdp.is_alive, weight=0.5)
     # (2) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-10.0)
     # (3) Primary task: keep pole upright
@@ -246,11 +246,11 @@ class RewardsCfg:
     #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
     # )
     # hover near target height (world z; tune to match spawn ~0.5–1.0 m)
-    height = RewTerm(
-        func=mdp.base_height_l2,
-        weight=-2.0,
-        params={"target_height": 1.0, "asset_cfg": SceneEntityCfg("robot")},
-    )
+    # height = RewTerm(
+    #     func=mdp.base_height_l2,
+    #     weight=-2.0,
+    #     params={"target_height": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    # )
     # penalize tilt (upright)
     flat_orientation = RewTerm(
         func=mdp.flat_orientation_l2,
@@ -260,7 +260,7 @@ class RewardsCfg:
     # penalize vertical bobbing and wobble
     lin_vel_z = RewTerm(
         func=mdp.lin_vel_z_l2,
-        weight=-0.5,
+        weight=-0.3,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
     ang_vel_xy = RewTerm(
@@ -269,7 +269,27 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
     # smooth control
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_magnitude = RewTerm(func=mdp.action_magnitude_l2, weight=-0.02)
+
+    #REWARDS.PY
+    progress_to_opening = RewTerm(func=mdp.progress_to_opening, weight=3.0)
+    distance_to_opening_exp = RewTerm(
+        func=mdp.distance_to_opening_exp, weight=15.0,
+        params={"std": 3.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    heading_to_opening_exp = RewTerm(
+        func=mdp.heading_to_opening_exp, weight=2.0,
+        params={"std": 0.8, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    at_opening = RewTerm(
+        func=mdp.at_opening, weight=10.0,
+        params={"success_radius": 1.5, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    height_to_opening = RewTerm(
+        func=mdp.height_error_to_opening_l2, weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
 
 
 @configclass

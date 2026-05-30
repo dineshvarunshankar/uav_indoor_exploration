@@ -84,13 +84,13 @@ def reset_spawn_position(
 
 
 #load openings
-def load_openings(path: Path | None = None) -> torch.tensor:
+def load_openings(path: Path | None = None) -> torch.Tensor:
     """Load openings as (N, 3) tensor: x, y, z in meters."""
     path = path or _openings_yaml
-    with open(path) a f:
+    with open(path) as f:
         data = yaml.safe_load(f)
     openings = [o["pos"] for o in data["openings"]]
-    return torch.tensor(rows, dtype=torch.float32)
+    return torch.tensor(openings, dtype=torch.float32)
 
 global_openings = load_openings()
 
@@ -103,12 +103,20 @@ def _ensure_opening_target_buffer(
     return env.opening_target_env
 
 def reset_opening_target(
-    env:ManagerBasedEnv,
-    env_ids:torch.Tensor,
-    openings:torch.Tensor | None = None,
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    openings: torch.Tensor | None = None,
 ):
+    """Sample opening per env; env-local meters. Init progress reward distance."""
     openings = openings if openings is not None else global_openings
     openings = openings.to(device=env.device)
-    target = _ensure_openings_target_buffer(env, env.device)
+    target = _ensure_opening_target_buffer(env, env.device)
     idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
     target[env_ids] = openings[idx]
+
+    asset = env.scene["robot"]
+    robot_pos_env = asset.data.root_pos_w[env_ids] - env.scene.env_origins[env_ids]
+    dist = torch.norm(target[env_ids] - robot_pos_env, dim=-1)
+    if not hasattr(env, "_prev_dist_to_opening"):
+        env._prev_dist_to_opening = torch.zeros(env.num_envs, device=env.device)
+    env._prev_dist_to_opening[env_ids] = dist
