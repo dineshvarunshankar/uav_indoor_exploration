@@ -8,25 +8,11 @@ from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.envs import ManagerBasedEnv
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import configclass
-
+import math
 from rlPx4Controller.pyParallelControl import ParallelVelControl
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-
-@configclass
-class PX4VelocityActionCfg(ActionTermCfg):
-    """linear velocity + yaw rate setpoint action via rlPx4 ParallelVelControl."""
-
-    class_type:type[ActionTerm] = None
-    joint_names: list[str] = ["joint0", "joint1", "joint2", "joint3"]
-
-    v_max_xy: float = 3.0
-    v_max_z : float = 1.0
-    yaw_rate_max: float = 2.618 # 150 deg/s
-    motor_scale: float = 1.0
-    motor_clip: tuple[float, float] | None = None
-
 
 class PX4VelocityAction(ActionTerm):
     cfg: PX4VelocityActionCfg
@@ -43,7 +29,7 @@ class PX4VelocityAction(ActionTerm):
         self._motor_cmds = torch.zeros(self.num_envs, 4, device=self.device)
 
         self._scale = torch.tensor(
-            [cfg.v_max_xy, cfg.v_max_xy, cfg.v_max_z, cfg.yaw_rate_max],
+            [cfg.v_max_xy, cfg.v_max_xy, cfg.v_max_z, cfg.yaw_max],
             device=self.device,
         )
 
@@ -63,7 +49,7 @@ class PX4VelocityAction(ActionTerm):
         return self._processed_actions
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        "once per env step: convert policy action to velocity + yaw rate setpoints for rlPx4"
+        "once per env step: convert policy action to velocity + yaw setpoints for rlPx4"
         self._raw_actions[:] = actions
         self._processed_actions[:] = actions * self._scale
 
@@ -76,17 +62,18 @@ class PX4VelocityAction(ActionTerm):
         pos = data.root_pos_w.detach().cpu().numpy()
         vel = data.root_lin_vel_w.detach().cpu().numpy()
         ang_vel = data.root_ang_vel_w.detach().cpu().numpy()
-        quat = data.root_quat_w.detach().cpu().numpy()
 
+        quat_w = data.root_quat_w
         vel_b = self._processed_actions[:, :3]
-        vel_w = math_utils.quat_apply(quat, vel_b)
+        vel_w = math_utils.quat_apply(quat_w, vel_b)
         actions_w = torch.cat([vel_w, self._processed_actions[:, 3:4]], dim=-1)
         actions_np = actions_w.detach().cpu().numpy()
-        
-        self._px4.set_status(pos, quat, vel, ang_vel, dt)
+
+        quat_np = quat_w.detach().cpu().numpy()
+        self._px4.set_status(pos, quat_np, vel, ang_vel, dt)
         motor_np = self._px4.update(actions_np)
 
-        self._motor_cmds[:] = torch.as_tensor(motor_np, device=self.device, dtype=dtype.float32)
+        self._motor_cmds[:] = torch.as_tensor(motor_np, device=self.device, dtype=torch.float32)
         self._motor_cmds *= self.cfg.motor_scale
 
         if self.cfg.motor_clip is not None:
@@ -97,12 +84,39 @@ class PX4VelocityAction(ActionTerm):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         if env_ids is None:
+            env_ids_t = torch.arange(self.num_envs, device=self.device)
+
             self._raw_actions.zero_()
             self._processed_actions.zero_()
             self._motor_cmds.zero_()
         else:
-            self._raw_actions[env_ids] = 0.0
-            self._processed_actions[env_ids] = 0.0
-            self._motor_cmds[env_ids] = 0.0
+            env_ids_t = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
+            self._motor_cmds[env_ids_t] = 0.0
 
-PX4VelocityActionCfg.class_type = PX4VelocityAction
+        # Zero velocity 
+        self._raw_actions[env_ids_t, :3] = 0.0
+        self._processed_actions[env_ids_t, :3] = 0.0
+
+        # Yaw setpoint = current world heading
+        _, _, yaw = math_utils.euler_xyz_from_quat(self._asset.data.root_quat_w[env_ids_t])
+        yaw = math_utils.wrap_to_pi(yaw)
+        self._processed_actions[env_ids_t, 3] = yaw
+        # Keep raw in sync so last_action obs matches before next policy step
+        self._raw_actions[env_ids_t, 3] = yaw / self.cfg.yaw_max
+
+@configclass
+class PX4VelocityActionCfg(ActionTermCfg):
+    """linear velocity + yaw setpoint action via rlPx4 ParallelVelControl."""
+
+    class_type:type[ActionTerm] = PX4VelocityAction
+    joint_names: list[str] = ["joint0", "joint1", "joint2", "joint3"]
+
+    v_max_xy: float = 3.0
+    v_max_z : float = 1.0
+    yaw_max: float = math.pi
+    motor_scale: float = 1.0
+    motor_clip: tuple[float, float] | None = None
+
+
+
+# PX4VelocityActionCfg.class_type = 

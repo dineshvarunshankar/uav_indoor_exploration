@@ -16,7 +16,7 @@ from isaaclab.assets import ArticulationCfg
 # Configuration
 ##
 STARLING2_USD = (
-    "omniverse://airlab-nucleus.andrew.cmu.edu/Public/DTC/starling2_preliminary.usd"
+    "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/robots/starling2_preliminary.usd"
 )
 
 STARLING2_CFG = ArticulationCfg(

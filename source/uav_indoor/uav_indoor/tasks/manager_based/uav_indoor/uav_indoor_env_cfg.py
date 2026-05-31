@@ -16,8 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
-from isaaclab.sensors import TiledCameraCfg, RuntimeSensorNoiseCfg
-from isaaclab.utils.noise import GaussianNoiseCfg
+from isaaclab.sensors import TiledCameraCfg
 
 from . import mdp
 
@@ -68,7 +67,7 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = STARLING2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     #tof camera ModalAI VOXL 2 ToF (M0178)
     tof_camera = TiledCameraCfg(
-        prim_path="{ENV_REGEX_NS}/TOF_Camera",
+        prim_path="{ENV_REGEX_NS}/Robot/body/ToF_sensor", 
         spawn=None, #already defined in USD
         width=240,
         height=180,
@@ -99,7 +98,7 @@ class ActionsCfg:
         joint_names=["joint0", "joint1", "joint2", "joint3"], 
         v_max_xy=3.0,
         v_max_z=1.0,
-        yaw_rate_max=2.618,
+        yaw_max = math.pi, #yaw_rate_max=2.618,
         motor_scale=1.0)
 
 
@@ -133,22 +132,22 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
-    class TofCfg(ObsGroup):
-        tof_depth = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("tof_camera"),
-                "data_type": "distance_to_camera",
-                "normalize": True,
-            }
-        )
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = True
+    # @configclass
+    # class TofCfg(ObsGroup):
+    #     tof_depth = ObsTerm(
+    #         func=mdp.image,
+    #         params={
+    #             "sensor_cfg": SceneEntityCfg("tof_camera"),
+    #             "data_type": "distance_to_camera",
+    #             "normalize": True,
+    #         }
+    #     )
+    #     def __post_init__(self) -> None:
+    #         self.enable_corruption = False
+    #         self.concatenate_terms = True
     # observation groups
     proprio: ProprioCfg = ProprioCfg()
-    tof: TofCfg = TofCfg()
+    #tof: TofCfg = TofCfg()
 
 
 @configclass
@@ -202,12 +201,6 @@ class EventCfg:
         },
     )
 
-    #reset opening target
-    reset_opening_target = EventTerm(
-        func=mdp.reset_opening_target,
-        mode="reset",
-    )
-
     # reset_pole_position = EventTerm(
     #     func=mdp.reset_joints_by_offset,
     #     mode="reset",
@@ -217,6 +210,16 @@ class EventCfg:
     #         "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
     #     },
     # )
+    # In EventCfg:
+    assign_openings_on_reset = EventTerm(
+        func=mdp.reset_opening_target,
+        mode="reset",
+    )
+
+    assign_openings_on_startup = EventTerm(
+        func=mdp.reset_opening_target,
+        mode="startup",
+    )
 
 
 @configclass
@@ -270,7 +273,7 @@ class RewardsCfg:
     )
     # smooth control
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
-    action_magnitude = RewTerm(func=mdp.action_magnitude_l2, weight=-0.02)
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.02)
 
     #REWARDS.PY
     progress_to_opening = RewTerm(func=mdp.progress_to_opening, weight=3.0)
@@ -323,7 +326,7 @@ class TerminationsCfg:
 @configclass
 class UavIndoorEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: UavIndoorSceneCfg = UavIndoorSceneCfg(num_envs=64, env_spacing=6.0, filter_collisions=True)
+    scene: UavIndoorSceneCfg = UavIndoorSceneCfg(num_envs=2, env_spacing=6.0, filter_collisions=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

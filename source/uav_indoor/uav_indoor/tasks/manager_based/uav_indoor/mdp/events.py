@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-
+from .
 import torch
 import yaml
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import math as math_utils
+from .opening_targets import assign_random_opening_targets
 
 _spawn_yaml = Path(__file__).resolve().parent.parent / "spawn_zones.yaml"
-_openings_yaml = Path(__file__).resolve().parent.parent / "openings.yaml"
+# _openings_yaml = Path(__file__).resolve().parent.parent / "openings.yaml"
 
 
 #load spawn zones
@@ -82,41 +83,44 @@ def reset_spawn_position(
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
+def reset_opening_target(env, env_ids, openings=None):
+    """Event callback: sample new opening goals (mode='reset' or 'startup')."""
+    assign_random_opening_targets(env, env_ids, openings)
 
-#load openings
-def load_openings(path: Path | None = None) -> torch.Tensor:
-    """Load openings as (N, 3) tensor: x, y, z in meters."""
-    path = path or _openings_yaml
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    openings = [o["pos"] for o in data["openings"]]
-    return torch.tensor(openings, dtype=torch.float32)
+# #load openings
+# def load_openings(path: Path | None = None) -> torch.Tensor:
+#     """Load openings as (N, 3) tensor: x, y, z in meters."""
+#     path = path or _openings_yaml
+#     with open(path) as f:
+#         data = yaml.safe_load(f)
+#     return torch.tensor(data["openings"], dtype=torch.float32)
 
-global_openings = load_openings()
 
-def _ensure_opening_target_buffer(
-    env:ManagerBasedEnv,
-    device:torch.device,
-) -> torch.Tensor:
-    if not hasattr(env, "opening_target_env"):
-        env.opening_target_env = torch.zeros(env.num_envs, 3, device=device)
-    return env.opening_target_env
+# global_openings = load_openings()
 
-def reset_opening_target(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    openings: torch.Tensor | None = None,
-):
-    """Sample opening per env; env-local meters. Init progress reward distance."""
-    openings = openings if openings is not None else global_openings
-    openings = openings.to(device=env.device)
-    target = _ensure_opening_target_buffer(env, env.device)
-    idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
-    target[env_ids] = openings[idx]
+# def get_opening_targets(
+#     env:ManagerBasedEnv,
+#     device:torch.device,
+# ) -> torch.Tensor:
+#     if not hasattr(env, "opening_target_env"):
+#         env.opening_target_env = torch.zeros(env.num_envs, 3, device=device)
+#     return env.opening_target_env
 
-    asset = env.scene["robot"]
-    robot_pos_env = asset.data.root_pos_w[env_ids] - env.scene.env_origins[env_ids]
-    dist = torch.norm(target[env_ids] - robot_pos_env, dim=-1)
-    if not hasattr(env, "_prev_dist_to_opening"):
-        env._prev_dist_to_opening = torch.zeros(env.num_envs, device=env.device)
-    env._prev_dist_to_opening[env_ids] = dist
+# def reset_opening_target(
+#     env: ManagerBasedEnv,
+#     env_ids: torch.Tensor,
+#     openings: torch.Tensor | None = None,
+# ):
+#     """Sample opening per env; env-local meters. Init progress reward distance."""
+#     openings = openings if openings is not None else global_openings
+#     openings = openings.to(device=env.device)
+#     target = _ensure_opening_target_buffer(env, env.device)
+#     idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
+#     target[env_ids] = openings[idx]
+
+#     asset = env.scene["robot"]
+#     robot_pos_env = asset.data.root_pos_w[env_ids] - env.scene.env_origins[env_ids]
+#     dist = torch.norm(target[env_ids] - robot_pos_env, dim=-1)
+#     if not hasattr(env, "_prev_dist_to_opening"):
+#         env._prev_dist_to_opening = torch.zeros(env.num_envs, device=env.device)
+#     env._prev_dist_to_opening[env_ids] = dist
