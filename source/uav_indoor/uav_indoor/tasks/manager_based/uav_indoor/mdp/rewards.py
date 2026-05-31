@@ -15,7 +15,7 @@ import isaaclab.utils.math as math_utils
 from .opening_targets import (
     get_opening_targets,
     offset_to_opening_env,
-    offset_to_opening_body,   # only if you clean body_axis_aligned
+    offset_to_opening_body,   
     robot_position_env,
 )
 if TYPE_CHECKING:
@@ -83,14 +83,10 @@ def body_axis_aligned_to_opening(
 ) -> torch.Tensor:
     """Reward forward body axis pointing at opening (3D). Assumes body +X is forward."""
     asset = _get_asset(env, asset_cfg)
-    if not hasattr(env, "opening_target_env"):
-        return torch.zeros(env.num_envs, device=env.device)
-    delta_w = env.opening_target_env - _robot_pos_env(env, asset)
-    delta_b = math_utils.quat_apply_inverse(asset.data.root_quat_w, delta_w)
+    delta_b = offset_to_opening_body(env, asset)
     delta_b = delta_b / (torch.norm(delta_b, dim=-1, keepdim=True) + 1e-8)
     forward_b = torch.tensor([1.0, 0.0, 0.0], device=env.device).expand(env.num_envs, -1)
     return torch.clamp(torch.sum(delta_b * forward_b, dim=-1), min=0.0, max=1.0)
-
 def at_opening(
     env: ManagerBasedRLEnv,
     success_radius: float = 1.5,

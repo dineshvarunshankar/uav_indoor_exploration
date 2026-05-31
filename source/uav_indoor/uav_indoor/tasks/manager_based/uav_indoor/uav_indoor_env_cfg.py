@@ -293,6 +293,11 @@ class RewardsCfg:
         func=mdp.height_error_to_opening_l2, weight=-1.0,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
+    body_axis_aligned_to_opening = RewTerm(
+    func=mdp.body_axis_aligned_to_opening,
+    weight=1.0,
+    params={"asset_cfg": SceneEntityCfg("robot")},
+    )
 
 
 @configclass
