@@ -4,7 +4,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.assets import Articulation
-from .opening_targets import get_opening_targets
+from .opening_targets import offset_to_opening_body
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 

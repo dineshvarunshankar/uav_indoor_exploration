@@ -5,7 +5,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedEnv
 
-_OPENINGS_YAML = Path(__file__).resolve().parent.parent / "openings.yaml"
+_openings_yaml = Path(__file__).resolve().parent.parent / "openings.yaml"
 
 def load_openings(path: Path | None = None) -> torch.Tensor:
     """Load openings as (N, 3) tensor: x, y, z in meters."""
@@ -30,6 +30,10 @@ def assign_random_opening_targets(
     env_ids: torch.Tensor,
     openings: torch.Tensor | None = None,
 ) -> None:
+    if env_ids is None or env_ids == slice(None):
+        env_ids = torch.arange(env.num_envs, device=env.device)
+    else:
+        env_ids = env_ids.to(device=env.device)
     """Write a random opening from the catalog into opening_target_env[env_ids]."""
     openings = (openings or OPENINGS).to(device=env.device)
     targets = get_opening_targets(env)

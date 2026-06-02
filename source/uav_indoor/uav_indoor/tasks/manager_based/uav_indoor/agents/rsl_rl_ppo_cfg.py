@@ -10,12 +10,16 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 16
-    max_iterations = 150
+    num_steps_per_env = 32
+    max_iterations = 5000
     save_interval = 50
     experiment_name = "uav_indoor_exploration"
+    seed = 42
+    device = "cuda:0"
+    logger = "wandb"
+    wandb_project = "UAV_Indoor_Exploration"
     obs_groups = {
-        "policy": ["proprio"], #, "tof"],
+        "actor": ["proprio"], #, "tof"],
         "critic": ["proprio"], #, "tof"],
     }
     policy = RslRlPpoActorCriticCfg(
@@ -30,7 +34,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.005,
+        entropy_coef=0.01,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-3,
