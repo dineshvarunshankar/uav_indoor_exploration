@@ -16,7 +16,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.utils.noise import GaussianNoiseCfg
+from isaaclab.sensors import TiledCameraCfg, ContactSensorCfg
 
 from . import mdp
 
@@ -46,10 +47,11 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
         ),
         spawn=sim_utils.UsdFileCfg(usd_path=sky_usd),
     )
-    # scene
+    # scene: single SHARED instance (not per-env) so the thousands of colliders are paid for
+    # once instead of x num_envs. All robots fly in this one world; env_origins are ~0
+    # (env_spacing=0), so spawn-zone / opening coords are used directly as world coords.
     scene = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Environment",
-        # prim_path="/World/ConstructionSite",   # single instance
+        prim_path="/World/ConstructionSite",
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.0),
             rot=(1.0, 0.0, 0.0, 0.0),
@@ -65,6 +67,14 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
 
     # robot
     robot: ArticulationCfg = STARLING2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # contact sensor on all robot bodies -> used for collision termination.
+    # NOTE: requires the scene USD (walls/floor) to have collision geometry, else no contacts are reported.
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=3,
+        update_period=0.0,
+        track_air_time=False,
+    )
     #tof camera ModalAI VOXL 2 ToF (M0178)
     tof_camera = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/body/ToF_sensor", 
@@ -112,26 +122,28 @@ class ObservationsCfg:
     class ProprioCfg(ObsGroup):
         """Observations for policy group."""
 
-        # body
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        root_pos_w = ObsTerm(func=mdp.root_pos_w)
+        # body (noise std mirrors real EKF/IMU/perception error so the policy can't
+        # rely on perfectly clean state at deploy time)
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.07))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
+        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
+        # root_pos_w removed: absolute world position hurts generalization and is large/unnormalized.
+        # target_offset_body already gives the policy the relative bearing+distance it needs.
         #base_pos_z = ObsTerm(func=mdp.base_pos_z)
 
-        #rotors
+        # rotors: joint_vel_rel removed. Per-rotor RPM is not a reliable real-time
+        # observation on the real Starling 2, so training on it is a sim-only crutch.
         #joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
 
-        #prev actions
+        #prev actions (policy's own output: exact, no noise)
         last_action = ObsTerm(func=mdp.last_action)
 
-        #opening target
-        target_offset_body = ObsTerm(func=mdp.target_offset_body)
+        #opening target (from perception/localization: largest real error source)
+        target_offset_body = ObsTerm(func=mdp.target_offset_body, noise=GaussianNoiseCfg(mean=0.0, std=0.10))
 
 
         def __post_init__(self) -> None:
-            self.enable_corruption = False
+            self.enable_corruption = True
             self.concatenate_terms = True
 
     # @configclass
@@ -170,13 +182,27 @@ class EventCfg:
             
             # Velocities 
             "velocity_range": {
-                "x": (-3.0, 3.0),      # 3 m/s forward/backward
-                "y": (-3.0, 3.0),      # 3 m/s left/right
-                "z": (-1.0, 1.0),      # 1 m/s up/down
-                "roll": (-1.745, 1.745),   # 100 deg/s roll rate
-                "pitch": (-1.745, 1.745),  # 100 deg/s pitch rate
-                "yaw": (-0.698, 0.698),    # 40 deg/s yaw rate
+                "x": (-0.5, 0.5), #(-3.0, 3.0),      # 3 m/s forward/backward
+                "y": (-0.5, 0.5), #(-3.0, 3.0),      # 3 m/s left/right
+                "z": (-0.25, 0.25), #(-1.0, 1.0),      # 1 m/s up/down
+                "roll": (-0.5, 0.5), #(-1.745, 1.745),   # 100 deg/s roll rate
+                "pitch": (-0.5, 0.5), #(-1.745, 1.745),  # 100 deg/s pitch rate
+                "yaw": (-0.2, 0.2), #(-0.698, 0.698),    # 40 deg/s yaw rate
             },
+        },
+    )
+
+    # Sim-to-real: randomize total mass each episode (T/W spread; pairs with the
+    # per-env thrust-scale + motor-lag randomization in the PX4 velocity action term)
+    randomize_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": (0.9, 1.1),
+            "operation": "scale",
+            "distribution": "uniform",
+            "recompute_inertia": True,
         },
     )
 
@@ -230,8 +256,11 @@ class RewardsCfg:
 
     # (1) Constant running reward
     alive = RewTerm(func=mdp.is_alive, weight=0.5)
-    # (2) Failure penalty
-    terminating = RewTerm(func=mdp.is_terminated, weight=-10.0)
+    # (2) Failure penalty: only real failures (collision), NOT time_out or reached_opening success
+    terminating = RewTerm(
+        func=mdp.is_terminated_term, weight=-10.0,
+        params={"term_keys": ["collision"]},
+    )
     # (3) Primary task: keep pole upright
     # pole_pos = RewTerm(
     #     func=mdp.joint_pos_target_l2,
@@ -278,18 +307,22 @@ class RewardsCfg:
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.02)
 
     #REWARDS.PY
-    progress_to_opening = RewTerm(func=mdp.progress_to_opening, weight=3.0)
+    # progress is the primary potential-function driver (telescopes to distance closed)
+    progress_to_opening = RewTerm(func=mdp.progress_to_opening, weight=6.0)
+    # absolute-distance shaping kept small so it cannot dominate progress / encourage camping
     distance_to_opening_exp = RewTerm(
-        func=mdp.distance_to_opening_exp, weight=15.0,
+        func=mdp.distance_to_opening_exp, weight=1.0,
         params={"std": 3.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     heading_to_opening_exp = RewTerm(
         func=mdp.heading_to_opening_exp, weight=2.0,
         params={"std": 0.8, "asset_cfg": SceneEntityCfg("robot")},
     )
+    # one-time success bonus: episode ends on success (see TerminationsCfg.reached_opening),
+    # so this fires once. Reward manager scales by dt (1/60), so weight 300 -> ~+5 effective.
     at_opening = RewTerm(
-        func=mdp.at_opening, weight=10.0,
-        params={"success_radius": 1.5, "asset_cfg": SceneEntityCfg("robot")},
+        func=mdp.at_opening, weight=100.0,
+        params={"success_radius": 0.7, "asset_cfg": SceneEntityCfg("robot")},
     )
     height_to_opening = RewTerm(
         func=mdp.height_error_to_opening_l2, weight=-1.0,
@@ -308,20 +341,17 @@ class TerminationsCfg:
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # # (2) Cart out of bounds
-    # cart_out_of_bounds = DoneTerm(
-    #     func=mdp.joint_pos_out_of_manual_limit,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
-    # )
-    # hit ground / too low (tune minimum_height for your spawn height)
-    low_height = DoneTerm(
-        func=mdp.root_height_below_minimum,
-        params={"minimum_height": 0.15, "asset_cfg": SceneEntityCfg("robot")},
+    # (2) Failure: any collision (drone body/rotors hitting walls, floor, obstacles).
+    # threshold in Newtons; tune up if light grazes should be ignored.
+    collision = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
     )
-    # flipped / too tilted (~57° if limit_angle=1.0 rad)
-    bad_orientation = DoneTerm(
-        func=mdp.bad_orientation,
-        params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    # (3) Success: reached the opening. Ends the episode so the policy cannot camp at the goal.
+    # success_radius must match the at_opening reward so the bonus fires on the terminal step.
+    reached_opening = DoneTerm(
+        func=mdp.reached_opening,
+        params={"success_radius": 0.7, "asset_cfg": SceneEntityCfg("robot")},
     )
 
 
@@ -333,10 +363,10 @@ class TerminationsCfg:
 @configclass
 class UavIndoorEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: UavIndoorSceneCfg = UavIndoorSceneCfg(num_envs=2, env_spacing=6.0, filter_collisions=True)
-    # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
+    # env_spacing=0: shared world, all envs in one coordinate frame; filter_collisions keeps
+    # robots from different envs from physically colliding with each other (each still hits the scene).
+    scene: UavIndoorSceneCfg = UavIndoorSceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True)
+    # Basic settings 
     events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
@@ -347,7 +377,7 @@ class UavIndoorEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2 #how many physics sub-steps per simulation step
-        self.episode_length_s = 20
+        self.episode_length_s = 30  # ~3 m/s cap -> ~90 m reachable; safe now that success ends the episode
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings

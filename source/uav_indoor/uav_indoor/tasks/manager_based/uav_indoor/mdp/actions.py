@@ -59,6 +59,19 @@ class PX4VelocityAction(ActionTerm):
         # rlPx4 runs on CPU/numpy
         self._px4 = ParallelVelControl(self.num_envs)
 
+        # --- actuator first-order lag + per-env domain-randomization state ---
+        self._thrust_state = torch.zeros(self.num_envs, 4, device=self.device)
+        self._thrust_init = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._motor_tau = torch.full((self.num_envs, 1), cfg.motor_tau, device=self.device)
+        self._k_thrust_scale = torch.ones(self.num_envs, 1, device=self.device)
+
+        # --- action-latency ring buffer (units: env steps) ---
+        self._buf_len = max(int(cfg.max_action_delay_steps) + 1, 1)
+        self._action_hist = torch.zeros(self.num_envs, self._buf_len, 4, device=self.device)
+        self._hist_ptr = 0
+        self._act_delay = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._env_arange = torch.arange(self.num_envs, device=self.device)
+
     @property
     def action_dim(self) -> int:
         return 4
@@ -78,9 +91,16 @@ class PX4VelocityAction(ActionTerm):
         return omega.clamp(self.cfg.omega_min, self.cfg.omega_max)
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        """Once per env step: policy actions -> velocity + yaw setpoints for rlPx4."""
+        """Once per env step: policy actions -> (latency-delayed) velocity + yaw setpoints for rlPx4."""
         self._raw_actions[:] = actions
-        self._processed_actions[:] = actions * self._scale
+
+        # inject per-env command latency via a ring buffer of env steps
+        self._action_hist[:, self._hist_ptr] = actions
+        read_idx = (self._hist_ptr - self._act_delay) % self._buf_len
+        delayed = self._action_hist[self._env_arange, read_idx]
+        self._hist_ptr = (self._hist_ptr + 1) % self._buf_len
+
+        self._processed_actions[:] = delayed * self._scale
 
     def apply_actions(self) -> None:
         """Once per physics step: rlPx4 -> per-rotor thrust/torque on rotor bodies (+Z)."""
@@ -110,13 +130,26 @@ class PX4VelocityAction(ActionTerm):
 
         omega = self._throttle_to_omega(self._throttle)
         omega_sq = omega.square()
-        thrust = self._k_thrust * omega_sq
-        torque_mag = self._k_torque * omega_sq
+
+        # static thrust target; per-env k_thrust scale models battery/motor variation
+        thrust_cmd = (self._k_thrust * self._k_thrust_scale) * omega_sq
+
+        # first-order actuator lag (per-env tau from step-response SysID); seed to
+        # the first command on the step after reset to avoid a spurious startup dip
+        not_init = ~self._thrust_init
+        if not_init.any():
+            self._thrust_state[not_init] = thrust_cmd[not_init]
+            self._thrust_init[not_init] = True
+        alpha = dt / (self._motor_tau + dt)
+        self._thrust_state += alpha * (thrust_cmd - self._thrust_state)
+        thrust = self._thrust_state
+        # reaction torque shares the same (lagged) omega^2 dependence
+        torque_mag = (self._k_torque / self._k_thrust) * thrust
 
         self._forces.zero_()
-        self._forces[..., 2] = thrust
+        self._forces[:, :, 2] = thrust
         self._torques.zero_()
-        self._torques[..., 2] = self._motor_torque_sign * torque_mag
+        self._torques[:, :, 2] = self._motor_torque_sign * torque_mag
 
         self._asset.instantaneous_wrench_composer.set_forces_and_torques(
             forces=self._forces,
@@ -150,6 +183,27 @@ class PX4VelocityAction(ActionTerm):
         yaw = wrap_to_pi(yaw)
         self._processed_actions[env_ids_t, 3] = yaw
         self._raw_actions[env_ids_t, 3] = yaw / self.cfg.yaw_max
+
+        # re-initialize actuator-lag state (re-seeds to first command next step)
+        self._thrust_state[env_ids_t] = 0.0
+        self._thrust_init[env_ids_t] = False
+
+        # seed the action-latency buffer with the reset command (vel=0, yaw held)
+        n = env_ids_t.numel()
+        self._action_hist[env_ids_t] = 0.0
+        self._action_hist[env_ids_t, :, 3] = (yaw / self.cfg.yaw_max).unsqueeze(1)
+
+        # per-env domain randomization, resampled each reset
+        if self.cfg.randomize:
+            tau_lo, tau_hi = self.cfg.motor_tau_range
+            self._motor_tau[env_ids_t, 0] = tau_lo + (tau_hi - tau_lo) * torch.rand(n, device=self.device)
+            kt_lo, kt_hi = self.cfg.k_thrust_scale_range
+            self._k_thrust_scale[env_ids_t, 0] = kt_lo + (kt_hi - kt_lo) * torch.rand(n, device=self.device)
+            self._act_delay[env_ids_t] = torch.randint(0, self._buf_len, (n,), device=self.device)
+        else:
+            self._motor_tau[env_ids_t, 0] = self.cfg.motor_tau
+            self._k_thrust_scale[env_ids_t, 0] = 1.0
+            self._act_delay[env_ids_t] = 0
 
 
 @configclass
@@ -185,3 +239,12 @@ class PX4VelocityActionCfg(ActionTermCfg):
     motor_scale: float = 1.0
     motor_clip: tuple[float, float] | None = (0.0, 1.0)
     visual_spin_joints: bool = True
+
+    # --- actuator dynamics ---
+    motor_tau: float = 0.161  # first-order thrust lag (s), from step-response SysID
+
+    # --- domain randomization (per-env, resampled each reset) ---
+    randomize: bool = True
+    motor_tau_range: tuple[float, float] = (0.12, 0.20)      # spin-up time constant spread
+    k_thrust_scale_range: tuple[float, float] = (0.90, 1.05)  # battery sag / motor variation
+    max_action_delay_steps: int = 2                           # command latency, in env steps

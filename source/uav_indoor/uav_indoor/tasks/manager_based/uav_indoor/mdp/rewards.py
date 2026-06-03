@@ -89,12 +89,31 @@ def body_axis_aligned_to_opening(
     return torch.clamp(torch.sum(delta_b * forward_b, dim=-1), min=0.0, max=1.0)
 def at_opening(
     env: ManagerBasedRLEnv,
-    success_radius: float = 1.5,
+    success_radius: float = 0.7,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
+    """One-time success bonus. Pair with the ``reached_opening`` termination so the
+    episode ends on the same step this fires; the reward manager scales by dt, so use a
+    large weight (~success_radius bonus / dt) to make the one-shot bonus meaningful."""
     asset = _get_asset(env, asset_cfg)
     d = _dist_to_opening(env, asset)
     return (d < success_radius).float()
+
+
+def reached_opening(
+    env: ManagerBasedRLEnv,
+    success_radius: float = 0.7,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Episode-ending success: True once the drone is within ``success_radius`` of the goal.
+
+    Ending the episode on success makes per-step camping at the target impossible.
+    Keep ``success_radius`` identical to the ``at_opening`` reward so the bonus fires
+    exactly on the terminal step.
+    """
+    asset = _get_asset(env, asset_cfg)
+    d = _dist_to_opening(env, asset)
+    return d < success_radius
 
 def height_error_to_opening_l2(env, asset_cfg=SceneEntityCfg("robot")):
     asset = _get_asset(env, asset_cfg)

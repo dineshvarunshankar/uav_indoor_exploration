@@ -30,7 +30,7 @@ def assign_random_opening_targets(
     env_ids: torch.Tensor,
     openings: torch.Tensor | None = None,
 ) -> None:
-    if env_ids is None or env_ids == slice(None):
+    if env_ids is None:
         env_ids = torch.arange(env.num_envs, device=env.device)
     else:
         env_ids = env_ids.to(device=env.device)
