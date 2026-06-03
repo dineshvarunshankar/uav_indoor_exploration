@@ -59,13 +59,13 @@ class PX4VelocityAction(ActionTerm):
         # rlPx4 runs on CPU/numpy
         self._px4 = ParallelVelControl(self.num_envs)
 
-        # --- actuator first-order lag + per-env domain-randomization state ---
+        # actuator first-order lag + per-env domain-randomization state 
         self._thrust_state = torch.zeros(self.num_envs, 4, device=self.device)
         self._thrust_init = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._motor_tau = torch.full((self.num_envs, 1), cfg.motor_tau, device=self.device)
         self._k_thrust_scale = torch.ones(self.num_envs, 1, device=self.device)
 
-        # --- action-latency ring buffer (units: env steps) ---
+        # action-latency ring buffer (units: env steps)
         self._buf_len = max(int(cfg.max_action_delay_steps) + 1, 1)
         self._action_hist = torch.zeros(self.num_envs, self._buf_len, 4, device=self.device)
         self._hist_ptr = 0

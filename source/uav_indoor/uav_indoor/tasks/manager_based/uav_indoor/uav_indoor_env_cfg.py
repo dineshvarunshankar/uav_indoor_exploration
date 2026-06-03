@@ -367,6 +367,8 @@ class UavIndoorEnvCfg(ManagerBasedRLEnvCfg):
     # robots from different envs from physically colliding with each other (each still hits the scene).
     scene: UavIndoorSceneCfg = UavIndoorSceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True)
     # Basic settings 
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
