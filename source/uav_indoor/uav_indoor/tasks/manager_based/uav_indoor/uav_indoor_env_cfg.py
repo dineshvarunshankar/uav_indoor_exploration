@@ -94,12 +94,14 @@ class ActionsCfg:
 
     # joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["joint0", "joint1", "joint2", "joint3"], scale=1.0)
     px4_velocity = mdp.PX4VelocityActionCfg(
-        asset_name="robot", 
-        joint_names=["joint0", "joint1", "joint2", "joint3"], 
+        asset_name="robot",
+        joint_names=["joint0", "joint1", "joint2", "joint3"],
+        prop_body_names=["rotor0", "rotor1", "rotor2", "rotor3"],
         v_max_xy=3.0,
         v_max_z=1.0,
-        yaw_max = math.pi, #yaw_rate_max=2.618,
-        motor_scale=1.0)
+        yaw_max=math.pi,
+        motor_scale=1.0,
+    )
 
 
 @configclass
