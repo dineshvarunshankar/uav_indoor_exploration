@@ -11,8 +11,8 @@ from isaaclab.utils import configclass
 import math
 from rlPx4Controller.pyParallelControl import ParallelVelControl
 
-if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+# if TYPE_CHECKING:
+#     from isaaclab.envs import ManagerBasedEnv
 
 class PX4VelocityAction(ActionTerm):
     cfg: PX4VelocityActionCfg
@@ -24,9 +24,9 @@ class PX4VelocityAction(ActionTerm):
         self._joint_ids, self._joint_names = self._asset.find_joints(
             cfg.joint_names, preserve_order=True
         )
-        self._raw_actions = torch.zeros(self.num_envs, 4, device=self.device)
-        self._processed_actions = torch.zeros_like(self._raw_actions)
-        self._motor_cmds = torch.zeros(self.num_envs, 4, device=self.device)
+        self._raw_actions = torch.zeros(self.num_envs, 4, device=self.device) #policy action
+        self._processed_actions = torch.zeros_like(self._raw_actions) # scaled action
+        self._motor_cmds = torch.zeros(self.num_envs, 4, device=self.device) # motor effort forces to PhysX engine
 
         self._scale = torch.tensor(
             [cfg.v_max_xy, cfg.v_max_xy, cfg.v_max_z, cfg.yaw_max],
@@ -36,7 +36,7 @@ class PX4VelocityAction(ActionTerm):
         #rlpx4 is cpu/numpy
         self._px4 = ParallelVelControl(self.num_envs)
 
-    @property
+    @property #same name for different objects
     def action_dim(self) -> int:
         return 4
 
@@ -63,14 +63,17 @@ class PX4VelocityAction(ActionTerm):
         vel = data.root_lin_vel_w.detach().cpu().numpy()
         ang_vel = data.root_ang_vel_w.detach().cpu().numpy()
 
-        quat_w = data.root_quat_w
+        quat_w = data.root_quat_w #world frame of drone
         vel_b = self._processed_actions[:, :3]
         vel_w = math_utils.quat_apply(quat_w, vel_b)
         actions_w = torch.cat([vel_w, self._processed_actions[:, 3:4]], dim=-1)
         actions_np = actions_w.detach().cpu().numpy()
 
         quat_np = quat_w.detach().cpu().numpy()
+
+        #update rlPx4 with current state
         self._px4.set_status(pos, quat_np, vel, ang_vel, dt)
+        #rlpx4 runs internal PID math and returns motor speeds
         motor_np = self._px4.update(actions_np)
 
         self._motor_cmds[:] = torch.as_tensor(motor_np, device=self.device, dtype=torch.float32)
@@ -90,7 +93,7 @@ class PX4VelocityAction(ActionTerm):
             self._processed_actions.zero_()
             self._motor_cmds.zero_()
         else:
-            env_ids_t = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
+            env_ids_t = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)#int64
             self._motor_cmds[env_ids_t] = 0.0
 
         # Zero velocity 

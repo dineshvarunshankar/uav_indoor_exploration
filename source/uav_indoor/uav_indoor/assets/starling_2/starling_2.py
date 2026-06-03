@@ -25,31 +25,27 @@ STARLING2_CFG = ArticulationCfg(
         usd_path=STARLING2_USD,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
-            max_depenetration_velocity=10.0,
+            max_depenetration_velocity=5.0,
             enable_gyroscopic_forces=True,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.001,
+            solver_position_iteration_count=5, #checks position error and tries to fix it. Long kinematic chains/loaded robots need more iterations.
+            solver_velocity_iteration_count=0, #solves friction and restitution(bounce) forces after positions are locked.
+            sleep_threshold=0.005, #stops calculating physics when kinetic energy(masss*velocity) is below this threshold.
+            stabilization_threshold=0.001, #jitter reduction; if velocity is below this threshold, solver applies additional damping to reduce jitter.
         ),
-        copy_from_source=False,
+        copy_from_source=False, #duplicate actual geometry and mesh to N envs
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         
         pos=(48.52, -38.906, 0.855), 
-        rot=(1.0, 0.0, 0.0, 0.0),
-        joint_pos={
-            ".*": 0.0,
-        },
-        joint_vel={
-            ".*": 0.0,
-        },
+        rot=(1.0, 0.0, 0.0, 0.0), #(w,x,y,z) quaternion rotation
+        joint_pos={".*": 0.0,},
+        joint_vel={".*": 0.0,},
     ),
     actuators={
-        "dummy": ImplicitActuatorCfg( #add more actuators if required (for example, gimbal, gripper, etc.)
+        "rotors": ImplicitActuatorCfg( #add more actuators if required (for example, gimbal, gripper, etc.)
             joint_names_expr=[".*"], #all joints
             stiffness=0.0, # P gain for position control
             damping=0.0, # D gain for velocity control
