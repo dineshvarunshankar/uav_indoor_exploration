@@ -31,10 +31,10 @@ STARLING2_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            solver_position_iteration_count=5, #checks position error and tries to fix it. Long kinematic chains/loaded robots need more iterations.
-            solver_velocity_iteration_count=0, #solves friction and restitution(bounce) forces after positions are locked.
-            sleep_threshold=0.005, #stops calculating physics when kinetic energy(masss*velocity) is below this threshold.
-            stabilization_threshold=0.001, #jitter reduction; if velocity is below this threshold, solver applies additional damping to reduce jitter.
+            # solver_position_iteration_count=5, #checks position error and tries to fix it. Long kinematic chains/loaded robots need more iterations.
+            # solver_velocity_iteration_count=0, #solves friction and restitution(bounce) forces after positions are locked.
+            # sleep_threshold=0.005, #stops calculating physics when kinetic energy(masss*velocity) is below this threshold.
+            # stabilization_threshold=0.001, #jitter reduction; if velocity is below this threshold, solver applies additional damping to reduce jitter.
         ),
         copy_from_source=False, #duplicate actual geometry and mesh to N envs
     ),

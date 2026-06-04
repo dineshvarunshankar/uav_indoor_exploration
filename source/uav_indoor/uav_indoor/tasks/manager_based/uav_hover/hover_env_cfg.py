@@ -30,7 +30,7 @@ from uav_indoor.assets.starling_2.starling_2 import STARLING2_CFG
 
 @configclass
 class UavHoverSceneCfg(InteractiveSceneCfg):
-    """Minimal hover scene: ground plane + Starling 2 (no construction site)."""
+    """Hover scene: ground plane + Starling 2."""
 
     ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -74,6 +74,10 @@ class ActionsCfg:
         v_max_z=1.0,
         yaw_max=math.pi,
         motor_scale=1.0,
+        # randomize=True,
+        # max_action_delay_steps=2,
+        randomize=False,
+        max_action_delay_steps=0,
     )
 
 
@@ -106,12 +110,14 @@ class EventCfg:
     set_hover_target_startup = EventTerm(
         func=mdp.reset_hover_target,
         mode="startup",
-        params={"height_range": (0.75, 1.75)},
+        # params={"height_range": (0.75, 5.0)},
+        params={"height_range": (0.9, 1.2)},
     )
     set_hover_target_reset = EventTerm(
         func=mdp.reset_hover_target,
         mode="reset",
-        params={"height_range": (0.75, 1.75)},
+        # params={"height_range": (0.75, 5.0)},
+        params={"height_range": (0.9, 1.2)},
     )
 
     # randomized initial pose/velocity around the spawn (offsets from default root state)
@@ -121,18 +127,28 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
-                "z": (-0.5, 1.0),          # spawn 0.5-2.0 m -> must climb/descend to target
-                "roll": (-0.1745, 0.1745),  # +/- 10 deg
-                "pitch": (-0.1745, 0.1745),
-                "yaw": (-3.14159, 3.14159),
+                # "z": (-0.5, 1.0),            # spawn 0.5-2.0 m -> must climb/descend to target
+                # "roll": (-0.1745, 0.1745),  # +/- 10 deg
+                # "pitch": (-0.1745, 0.1745),
+                # "yaw": (-3.14159, 3.14159),
+                "z": (0.0, 0.0),              # start at the 1 m default spawn height
+                "roll": (-0.02, 0.02),
+                "pitch": (-0.02, 0.02),
+                "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.25, 0.25),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.2, 0.2),
+                # "x": (-0.5, 0.5),
+                # "y": (-0.5, 0.5),
+                # "z": (-0.25, 0.25),
+                # "roll": (-0.5, 0.5),
+                # "pitch": (-0.5, 0.5),
+                # "yaw": (-0.2, 0.2),
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+                "roll": (0.0, 0.0),
+                "pitch": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
             },
         },
     )
@@ -144,7 +160,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "mass_distribution_params": (0.9, 1.1),
+            # "mass_distribution_params": (0.8, 1.2),
+            "mass_distribution_params": (1.0, 1.0),
             "operation": "scale",
             "distribution": "uniform",
             "recompute_inertia": True,
@@ -161,7 +178,7 @@ class RewardsCfg:
     # primary task: be at the commanded height
     height_tracking = RewTerm(
         func=mdp.hover_height_tracking, weight=10.0,
-        params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")},
+        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
 
     # station-keeping + smooth, level, calm flight
@@ -169,8 +186,8 @@ class RewardsCfg:
     lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.1)
     flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
     ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
-    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.002)
 
     # failure penalty (crash / flip only; not time_out)
     terminating = RewTerm(
