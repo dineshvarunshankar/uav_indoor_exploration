@@ -120,8 +120,9 @@ class PX4VelocityAction(ActionTerm):
 
         self._px4.set_status(pos, quat_np, vel, ang_vel, dt)
         motor_np = self._px4.update(actions_np)
+        motor_cmd = torch.as_tensor(motor_np, device=self.device, dtype=torch.float32)
 
-        self._throttle[:] = torch.as_tensor(motor_np, device=self.device, dtype=torch.float32)
+        self._throttle[:] = motor_cmd
         self._throttle.clamp_(0.0, 1.0)
         self._throttle *= self.cfg.motor_scale
         if self.cfg.motor_clip is not None:
@@ -205,6 +206,9 @@ class PX4VelocityAction(ActionTerm):
             self._k_thrust_scale[env_ids_t, 0] = 1.0
             self._act_delay[env_ids_t] = 0
 
+        # reset the rlPx4 velocity-loop integrator for these envs (avoid cross-episode windup)
+        self._px4.reset(env_ids_t.detach().cpu().tolist())
+
 
 @configclass
 class PX4VelocityActionCfg(ActionTermCfg):
@@ -220,31 +224,38 @@ class PX4VelocityActionCfg(ActionTermCfg):
     yaw_max: float = math.pi
 
     # Throttle -> omega ( throttle_to_omega_rads)
-    throttle_omega_c0: float = 248.004161
-    throttle_omega_c1: float = -1198.228360
-    throttle_omega_c2: float = 2445.931020
-    throttle_omega_c3: float = -41.786093
+    throttle_omega_c0: float = 248.00416104999036
+    throttle_omega_c1: float = -1198.2283604412567
+    throttle_omega_c2: float = 2445.931020220453
+    throttle_omega_c3: float = -41.78609388829809
     omega_min: float = 0.0
-    omega_max: float = 2500.0
+    omega_max: float = 1451.3110862033648
 
     # from SysID
-    k_thrust: float = 6.228023e-07
-    k_torque: float = 5.990268e-09
+    k_thrust: float = -6.228022812483619e-07
+    k_torque: float = 5.9902683625785134e-09
 
     # Spin direction for joint_vel visualization (+1 CCW, -1 CW when viewed from +Z)
     motor_spin_sign: tuple[float, float, float, float] = (1.0, 1.0, -1.0, -1.0)
-    # Reaction torque on rotor link (+Z); opposite of spin for CCW pair
-    motor_torque_sign: tuple[float, float, float, float] = (1.0, 1.0, -1.0, -1.0)
+    # Reaction torque is OPPOSITE the spin direction; this also matches the PX4 mixer
+    # yaw_scale=[-1,-1,+1,+1] so the yaw rate loop is negative feedback (was (1,1,-1,-1),
+    # which spun up yaw via positive feedback at hover).
+    motor_torque_sign: tuple[float, float, float, float] = (-1.0, -1.0, 1.0, 1.0)
 
     motor_scale: float = 1.0
     motor_clip: tuple[float, float] | None = (0.0, 1.0)
     visual_spin_joints: bool = True
 
     # --- actuator dynamics ---
-    motor_tau: float = 0.161  # first-order thrust lag (s), from step-response SysID
+    # NOTE: the SysID step_response_fit.json fits ~0.161 s, but every step there is
+    # PWM 1000(idle)<->1760, i.e. the large-signal SPIN-UP-FROM-REST constant. Attitude
+    # control makes small changes around hover (~0.65 throttle) where the prop already
+    # spins fast and damping is higher, so the relevant small-signal lag is several times
+    # shorter. Using the spin-up value destabilizes the (now correct, fast) attitude plant.
+    motor_tau: float = 0.05  # near-hover small-signal thrust lag (s)
 
     # --- domain randomization (per-env, resampled each reset) ---
     randomize: bool = True
-    motor_tau_range: tuple[float, float] = (0.12, 0.20)      # spin-up time constant spread
+    motor_tau_range: tuple[float, float] = (0.03, 0.07)      # near-hover lag spread
     k_thrust_scale_range: tuple[float, float] = (0.90, 1.05)  # battery sag / motor variation
     max_action_delay_steps: int = 2                           # command latency, in env steps

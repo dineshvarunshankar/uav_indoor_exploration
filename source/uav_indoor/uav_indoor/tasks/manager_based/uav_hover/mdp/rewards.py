@@ -6,8 +6,8 @@ import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
-
-from .events import get_hover_target
+from .events import get_hover_target, get_episode_yaw_ref
+from isaaclab.utils.math import euler_xyz_from_quat, wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -18,7 +18,7 @@ def hover_height_tracking(
     std: float = 0.5,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Bounded (0, 1] reward for being at the commanded height: exp(-(z_err/std)^2)."""
+    """Reward for tracking commanded height: exp(-(z_err/std)^2)."""
     asset: Articulation = env.scene[asset_cfg.name]
     z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
     err = get_hover_target(env) - z
@@ -29,6 +29,19 @@ def horizontal_velocity_l2(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Penalize world-frame horizontal drift (station-keeping without position feedback)."""
+    """Penalize world-frame horizontal drift."""
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.root_lin_vel_w[:, :2]), dim=1)
+
+def episode_yaw_tracking(
+    env: ManagerBasedRLEnv,
+    std: float = 0.3,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+  """Reward holding spawn heading: exp(-|yaw_err|/std)."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    _, _, yaw_now = euler_xyz_from_quat(asset.data.root_quat_w)
+    yaw_now = wrap_to_pi(yaw_now)
+    yaw_err = wrap_to_pi(get_episode_yaw_ref(env) - yaw_now)
+    return torch.exp(-torch.abs(yaw_err) / std)
+    # squared variant: torch.exp(-torch.square(yaw_err) / (std**2))
