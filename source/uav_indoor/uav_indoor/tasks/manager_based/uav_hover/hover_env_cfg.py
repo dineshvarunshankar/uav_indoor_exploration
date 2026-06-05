@@ -194,7 +194,7 @@ class RewardsCfg:
     ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.002)
-    episode_yaw = RewTerm(func=mdp.episode_yaw_tracking, weight=1.0, 
+    episode_yaw = RewTerm(func=mdp.episode_yaw_tracking, weight=0., 
     params={"std": 0.3, "asset_cfg": SceneEntityCfg("robot")})
 
     # failure penalty (crash / flip only)
