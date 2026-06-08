@@ -11,6 +11,7 @@ import isaaclab.utils.math as math_utils
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+# Hover Target
 
 def get_hover_target(env: ManagerBasedEnv) -> torch.Tensor:
     """Per-env commanded hover height (world z, meters)"""
@@ -35,6 +36,7 @@ def reset_hover_target(
         height_range[0], height_range[1], (n,), device=env.device
     )
 
+# episode yaw
 def get_episode_yaw_ref(env: ManagerBasedEnv) -> torch.Tensor:
     """Per-env yaw (rad) at episode start, after reset_base."""
     if not hasattr(env, "episode_yaw_ref"):
@@ -53,3 +55,23 @@ def record_episode_yaw_ref(
     asset: Articulation = env.scene[asset_cfg.name]
     _, _, yaw = euler_xyz_from_quat(asset.data.root_quat_w[env_ids])
     get_episode_yaw_ref(env)[env_ids] = wrap_to_pi(yaw)
+
+# XY position
+def get_episode_xy_ref(env: ManagerBasedEnv) -> torch.Tensor:
+    """Per-env XY position (meters) at episode start, after reset_base."""
+    if not hasattr(env, "episode_xy_ref"):
+        env.episode_xy_ref = torch.zeros(env.num_envs, 2, device=env.device)
+    return env.episode_xy_ref
+
+def record_episode_xy_ref(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> None:
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device)
+    else:
+        env_ids = torch.as_tensor(env_ids, device=env.device, dtype=torch.long)
+    asset: Articulation = env.scene[asset_cfg.name]
+    xy = asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids,:2]
+    get_episode_xy_ref(env)[env_ids] = xy
