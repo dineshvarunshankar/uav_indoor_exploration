@@ -10,7 +10,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 48
+    num_steps_per_env = 24
     max_iterations = 1500
     save_interval = 100
     experiment_name = "uav_hover"
@@ -23,7 +23,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         "critic": ["proprio"],
     }
     policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
+        init_noise_std=0.5,
         actor_obs_normalization=True,
         critic_obs_normalization=True,
         actor_hidden_dims=[256, 128],
@@ -37,7 +37,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         entropy_coef=0.01,
         num_learning_epochs=5,
         num_mini_batches=4,
-        learning_rate=5e-4,
+        learning_rate=3e-4,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,

@@ -74,10 +74,10 @@ class ActionsCfg:
         v_max_z=1.0,
         yaw_max=math.pi,
         motor_scale=1.0,
-        randomize=True,
-        max_action_delay_steps=2,
-        # randomize=False,
-        # max_action_delay_steps=0,
+        # randomize=True, #motor_tau, thrust scale, action delay
+        # max_action_delay_steps=2,
+        randomize=False,
+        max_action_delay_steps=0,
     )
 
 
@@ -129,28 +129,28 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
-                "z": (0.1, 0.5),            # spawn
-                "roll": (-0.1745, 0.1745),  
-                "pitch": (-0.1745, 0.1745),
+                # "z": (0.1, 0.5),            # spawn
+                # "roll": (-0.1745, 0.1745),  
+                # "pitch": (-0.1745, 0.1745),
+                # "yaw": (-3.14159, 3.14159),
+                "z": (0.0, 0.1),              # start at the 1 m default spawn height
+                "roll": (-0.0, 0.0),
+                "pitch": (-0.0, 0.0),
                 "yaw": (-3.14159, 3.14159),
-                # "z": (0.0, 0.0),              # start at the 1 m default spawn height
-                # "roll": (-0.02, 0.02),
-                # "pitch": (-0.02, 0.02),
-                # "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.25, 0.25),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.2, 0.2),
-                # "x": (0.0, 0.0),
-                # "y": (0.0, 0.0),
-                # "z": (0.0, 0.0),
-                # "roll": (0.0, 0.0),
-                # "pitch": (0.0, 0.0),
-                # "yaw": (0.0, 0.0),
+                # "x": (-0.5, 0.5),
+                # "y": (-0.5, 0.5),
+                # "z": (-0.25, 0.25),
+                # "roll": (-0.5, 0.5),
+                # "pitch": (-0.5, 0.5),
+                # "yaw": (-0.2, 0.2),
+                "x": (-0.0, 0.0),
+                "y": (-0.0, 0.0),
+                "z": (-0.0, 0.0),
+                "roll": (-0.0, 0.0),
+                "pitch": (-0.0, 0.0),
+                "yaw": (-0.0, 0.0),
             },
         },
     )
@@ -192,28 +192,28 @@ class RewardsCfg:
     # primary task: be at the commanded height
     height_tracking = RewTerm(
         func=mdp.hover_height_tracking, weight=10.0,
-        params={"std": 3.0, "asset_cfg": SceneEntityCfg("robot")},
+        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     xy_tracking = RewTerm(
         func=mdp.episode_xy_tracking,
         weight=5.0,
-        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     # station-keeping + smooth, level, calm flight
     #horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.01)
     # lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.001)
-    flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.01)
-    base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.01)
+    flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.001)
+    base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.001)
     # ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.001)
     episode_yaw = RewTerm(
     func=mdp.episode_yaw_tracking,
-    weight=0.5,
-    params={"std": 0.3, "asset_cfg": SceneEntityCfg("robot")},)
+    weight=5.0,
+    params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},)
     crash_penalty = RewTerm(
         func=mdp.illegal_contact,
-        weight=-5.0,
+        weight=-10.0,
         params={
             "threshold": 1.0,
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
@@ -221,7 +221,7 @@ class RewardsCfg:
     )
     #failure penalty (crash / flip only)
     terminating = RewTerm(
-        func=mdp.is_terminated_term, weight=-5.0,
+        func=mdp.is_terminated_term, weight=-10.0,
         params={"term_keys": ["flipped"]},
     )
 
@@ -231,7 +231,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     # crash = DoneTerm(
-    #     func=mdp.illegal_contact,
+    #     func=mdp.illegal_contact,  # DIAGNOSTIC: logs crash-step histogram; revert to mdp.illegal_contact after
     #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
     # )
     flipped = DoneTerm(
@@ -258,7 +258,7 @@ class UavHoverEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         self.decimation = 2
-        self.episode_length_s = 20.0
+        self.episode_length_s = 60.0
         # viewer
         self.viewer.eye = (4.0, 0.0, 3.0)
         # simulation: 1/120 * decimation 2 -> ~60 Hz control
