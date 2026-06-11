@@ -200,11 +200,11 @@ class RewardsCfg:
         params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     # station-keeping + smooth, level, calm flight
-    #horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.01)
-    # lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.001)
+    horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.01)
+    lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.001)
     flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.001)
     base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.001)
-    # ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+    # ang_vel_xy 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.001)
     episode_yaw = RewTerm(
@@ -219,10 +219,9 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
         },
     )
-    #failure penalty (crash / flip only)
     terminating = RewTerm(
         func=mdp.is_terminated_term, weight=-10.0,
-        params={"term_keys": ["flipped"]},
+        params={"term_keys": ["crash", "flipped"]},
     )
 
 @configclass
@@ -230,10 +229,10 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # crash = DoneTerm(
-    #     func=mdp.illegal_contact,  # DIAGNOSTIC: logs crash-step histogram; revert to mdp.illegal_contact after
-    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
-    # )
+    crash = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
+    )
     flipped = DoneTerm(
         func=mdp.bad_orientation,
         params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
