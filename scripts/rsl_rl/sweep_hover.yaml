@@ -33,17 +33,13 @@ parameters:
   env.rewards.alive.weight:                {distribution: uniform, min: 0.0, max: 1.0}
   env.rewards.flat_orientation.weight:     {distribution: uniform, min: -0.5, max: 0.0}
   env.rewards.base_ang_vel.weight:         {distribution: uniform, min: -0.1, max: 0.0}
-  env.rewards.action_rate.weight:          {distribution: uniform, min: -0.05, max: 0.0}
+  env.rewards.action_rate.weight:          {distribution: uniform, min: -0.1, max: 0.0}
   env.rewards.action_l2.weight:            {distribution: uniform, min: -0.05, max: 0.0}
-  env.rewards.horizontal_velocity.weight:  {distribution: uniform, min: -0.1, max: 0.0}
+  env.rewards.horizontal_velocity.weight:  {distribution: uniform, min: -0.2, max: 0.0}
   env.rewards.lin_vel_z.weight:            {distribution: uniform, min: -0.02, max: 0.0}
 
-  # --- crash handling ---
-  # threshold switches structure: 1.0 = crash terminates, 1e9 (large) = never terminates (penalty-only).
-  # the .5 keeps it a float so wandb can't normalize it to int (IsaacLab rejects int here).
-  env.terminations.crash.params.threshold: {values: [1.0, 1000000000.5]}
-  env.rewards.crash_penalty.weight:        {distribution: uniform, min: -3.0, max: 0.0}
-  env.rewards.terminating.weight:          {distribution: uniform, min: -20.0, max: 0.0}
+  # --- crash handling (penalty-only; episodes end on timeout) ---
+  env.rewards.crash_penalty.weight:        {distribution: uniform, min: -15.0, max: -1.0}
 
   # --- PPO ---
   agent.algorithm.learning_rate:           {distribution: log_uniform_values, min: 0.0001, max: 0.001}

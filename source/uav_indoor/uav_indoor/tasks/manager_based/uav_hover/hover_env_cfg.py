@@ -219,24 +219,24 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
         },
     )
-    terminating = RewTerm(
-        func=mdp.is_terminated_term, weight=-10.0,
-        params={"term_keys": ["crash", "flipped"]},
-    )
+    # terminating = RewTerm(
+    #     func=mdp.is_terminated_term, weight=-10.0,
+    #     params={"term_keys": ["crash", "flipped"]},
+    # )
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    crash = DoneTerm(
-        func=mdp.illegal_contact,
-        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
-    )
-    flipped = DoneTerm(
-        func=mdp.bad_orientation,
-        params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
-    )
+    # crash = DoneTerm(
+    #     func=mdp.illegal_contact,
+    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
+    # )
+    # flipped = DoneTerm(
+    #     func=mdp.bad_orientation,
+    #     params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
+    # )
 
 ##
 # Environment configuration

@@ -38,15 +38,16 @@ class PX4VelocityAction(ActionTerm):
             [cfg.v_max_xy, cfg.v_max_xy, cfg.v_max_z, cfg.yaw_max],
             device=self.device,
         )
-        self._throttle_poly = torch.tensor(
-            [
-                cfg.throttle_omega_c0,
-                cfg.throttle_omega_c1,
-                cfg.throttle_omega_c2,
-                cfg.throttle_omega_c3,
-            ],
-            device=self.device,
-        )
+        # OLD: SysID throttle->omega polynomial coeffs (replaced by linear RPM map)
+        # self._throttle_poly = torch.tensor(
+        #     [
+        #         cfg.throttle_omega_c0,
+        #         cfg.throttle_omega_c1,
+        #         cfg.throttle_omega_c2,
+        #         cfg.throttle_omega_c3,
+        #     ],
+        #     device=self.device,
+        # )
         self._motor_spin_sign = torch.tensor(cfg.motor_spin_sign, device=self.device)
         self._motor_torque_sign = torch.tensor(cfg.motor_torque_sign, device=self.device)
         self._k_thrust = abs(cfg.k_thrust)
@@ -85,9 +86,13 @@ class PX4VelocityAction(ActionTerm):
         return self._processed_actions
 
     def _throttle_to_omega(self, throttle: torch.Tensor) -> torch.Tensor:
-        """Map normalized motor throttle [0, 1] to rotor speed (rad/s)."""
-        c0, c1, c2, c3 = self._throttle_poly
-        omega = (c0 * throttle**3) + (c1 * throttle**2) + (c2 * throttle) + c3
+        """Map post-THR_MDL_FAC motor signal [0, 1] to rotor speed (rad/s)."""
+        # OLD: SysID polynomial (open-loop PWM bench fit)
+        # c0, c1, c2, c3 = self._throttle_poly
+        # omega = (c0 * throttle**3) + (c1 * throttle**2) + (c2 * throttle) + c3
+        # NEW: VOXL ESC linear RPM map (closed-loop, flight-verified)
+        rpm = self.cfg.rpm_min + throttle * (self.cfg.rpm_max - self.cfg.rpm_min)
+        omega = rpm * (2.0 * math.pi / 60.0)
         return omega.clamp(self.cfg.omega_min, self.cfg.omega_max)
 
     def process_actions(self, actions: torch.Tensor) -> None:
@@ -223,13 +228,17 @@ class PX4VelocityActionCfg(ActionTermCfg):
     v_max_z: float = 1.0
     yaw_max: float = math.pi
 
-    # Throttle -> omega ( throttle_to_omega_rads)
-    throttle_omega_c0: float = 248.00416104999036
-    throttle_omega_c1: float = -1198.2283604412567
-    throttle_omega_c2: float = 2445.931020220453
-    throttle_omega_c3: float = -41.78609388829809
+    # Throttle (post-THR_MDL_FAC mixer signal) -> omega
+    # OLD: SysID polynomial (open-loop PWM bench fit)
+    # throttle_omega_c0: float = 248.00416104999036
+    # throttle_omega_c1: float = -1198.2283604412567
+    # throttle_omega_c2: float = 2445.931020220453
+    # throttle_omega_c3: float = -41.78609388829809
+    # NEW: VOXL ESC closed-loop RPM, linear cmd->RPM (flight-verified, MCAP R^2=0.97)
+    rpm_min: float = 2000.0    # VOXL_ESC_RPM_MIN
+    rpm_max: float = 15000.0   # VOXL_ESC_RPM_MAX
     omega_min: float = 0.0
-    omega_max: float = 1451.3110862033648
+    omega_max: float = 1451.3110862033648   # 13859 rpm motor max
 
     # from SysID
     k_thrust: float = -6.228022812483619e-07
