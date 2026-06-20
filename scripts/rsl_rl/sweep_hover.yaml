@@ -21,28 +21,37 @@ command:
   - ${args_no_hyphens}
 
 parameters:
-  # --- primary task (always on: min > 0) ---
-  env.rewards.height_tracking.weight:      {distribution: uniform, min: 1.0, max: 15.0}
-  env.rewards.height_tracking.params.std:  {distribution: uniform, min: 0.3, max: 2.5}
-  env.rewards.xy_tracking.weight:          {distribution: uniform, min: 1.0, max: 10.0}
-  env.rewards.xy_tracking.params.std:      {distribution: uniform, min: 0.3, max: 2.5}
+  # --- fixed task (same target + spawn for all trials) ---
+  env.events.set_hover_target_reset.params.height_range:       {value: [5.0, 5.0]}
+  env.events.set_hover_target_startup.params.height_range:     {value: [5.0, 5.0]}
+  env.events.reset_base.params.pose_range.z:                   {value: [0.0, 0.0]}
+  env.events.reset_base.params.pose_range.yaw:                {value: [0.0, 0.0]}
+  env.events.randomize_mass.params.mass_distribution_params:   {value: [1.0, 1.0]}
 
-  # --- optional terms (min/max touches 0 => sweep can switch them off) ---
-  env.rewards.episode_yaw.weight:          {distribution: uniform, min: 0.0, max: 5.0}
-  env.rewards.episode_yaw.params.std:      {distribution: uniform, min: 0.3, max: 1.5}
-  env.rewards.alive.weight:                {distribution: uniform, min: 0.0, max: 1.0}
-  env.rewards.flat_orientation.weight:     {distribution: uniform, min: -0.5, max: 0.0}
-  env.rewards.base_ang_vel.weight:         {distribution: uniform, min: -0.1, max: 0.0}
-  env.rewards.action_rate.weight:          {distribution: uniform, min: -0.1, max: 0.0}
-  env.rewards.action_l2.weight:            {distribution: uniform, min: -0.05, max: 0.0}
-  env.rewards.horizontal_velocity.weight:  {distribution: uniform, min: -0.2, max: 0.0}
-  env.rewards.lin_vel_z.weight:            {distribution: uniform, min: -0.02, max: 0.0}
+  # --- height: hold + climb + overshoot ---
+  env.rewards.height_tracking.weight:                          {distribution: uniform, min: 1.0, max: 20.0}
+  env.rewards.height_tracking.params.std:                      {distribution: uniform, min: 0.1, max: 1.5}
+  env.rewards.height_climb.weight:                             {distribution: uniform, min: 0.1, max: 10.0}
+  env.rewards.height_climb.params.v_cap:                       {distribution: uniform, min: 0.5, max: 1.0}
+  env.rewards.height_overshoot.weight:                         {distribution: uniform, min: -5.0, max: -0.1}
 
-  # --- crash handling (penalty-only; episodes end on timeout) ---
-  env.rewards.crash_penalty.weight:        {distribution: uniform, min: -15.0, max: -1.0}
+  # --- xy + yaw station-keeping ---
+  env.rewards.xy_tracking.weight:                              {distribution: uniform, min: 1.0, max: 10.0}
+  env.rewards.xy_tracking.params.std:                          {distribution: uniform, min: 0.1, max: 2.0}
+  env.rewards.episode_yaw.weight:                              {distribution: uniform, min: 0.0, max: 5.0}
+  env.rewards.episode_yaw.params.std:                          {distribution: uniform, min: 0.1, max: 1.5}
+
+  # --- smoothness (min/max touches 0 => sweep can switch off) ---
+  env.rewards.flat_orientation.weight:                         {distribution: uniform, min: -0.5, max: 0.0}
+  env.rewards.base_ang_vel.weight:                             {distribution: uniform, min: -0.5, max: 0.0}
+  env.rewards.action_rate.weight:                              {distribution: uniform, min: -0.1, max: 0.0}
+  env.rewards.action_l2.weight:                                {distribution: uniform, min: -0.1, max: 0.0}
+
+  # --- crash (one-time penalty on crash termination) ---
+  env.rewards.terminating.weight:                              {distribution: uniform, min: -50.0, max: -1.0}
 
   # --- PPO ---
-  agent.algorithm.learning_rate:           {distribution: log_uniform_values, min: 0.0001, max: 0.001}
-  agent.algorithm.entropy_coef:            {distribution: log_uniform_values, min: 0.0001, max: 0.01}
-  agent.algorithm.gamma:                   {values: [0.98, 0.99, 0.995, 0.999]}
-  agent.num_steps_per_env:                 {values: [24, 48, 96]}
+  agent.algorithm.learning_rate:                               {distribution: log_uniform_values, min: 0.0001, max: 0.001}
+  agent.algorithm.entropy_coef:                                {distribution: log_uniform_values, min: 0.0001, max: 0.01}
+  agent.algorithm.gamma:                                       {values: [0.98, 0.99, 0.995, 0.999]}
+  agent.num_steps_per_env:                                     {values: [24, 48, 96]}

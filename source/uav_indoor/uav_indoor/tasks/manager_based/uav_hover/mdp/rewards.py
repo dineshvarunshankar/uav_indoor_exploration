@@ -7,9 +7,23 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import euler_xyz_from_quat, wrap_to_pi
-from .events import get_episode_yaw_ref, get_hover_target, get_episode_xy_ref
+
+from .events import get_episode_xy_ref, get_episode_yaw_ref, get_hover_target
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def _height_state(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return env-frame height z, signed height error (target - z), and world vz."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    z_err = get_hover_target(env) - z
+    vz = asset.data.root_lin_vel_w[:, 2]
+    return z, z_err, vz
 
 
 def hover_height_tracking(
@@ -17,11 +31,31 @@ def hover_height_tracking(
     std: float = 0.5,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Reward for tracking commanded height: exp(-(z_err/std)^2)."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
-    err = get_hover_target(env) - z
-    return torch.exp(-torch.square(err) / (std**2))
+    """Hold at commanded height: exp(-(z_err/std)^2)."""
+    _, z_err, _ = _height_state(env, asset_cfg)
+    return torch.exp(-torch.square(z_err) / (std**2))
+
+
+def hover_height_climb(
+    env: ManagerBasedRLEnv,
+    height_tol: float = 0.25,
+    v_cap: float = 1.0,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Reward capped upward speed when clearly below target (climb phase only)."""
+    _, z_err, vz = _height_state(env, asset_cfg)
+    need_climb = z_err > height_tol
+    climb = torch.clamp(vz, min=0.0, max=v_cap)
+    return torch.where(need_climb, climb, torch.zeros_like(climb))
+
+
+def hover_height_overshoot(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalty magnitude when above commanded height (use negative weight)."""
+    _, z_err, _ = _height_state(env, asset_cfg)
+    return torch.clamp(-z_err, min=0.0)
 
 
 def horizontal_velocity_l2(
@@ -31,6 +65,7 @@ def horizontal_velocity_l2(
     """Penalize world-frame horizontal drift."""
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.root_lin_vel_w[:, :2]), dim=1)
+
 
 def episode_yaw_tracking(
     env: ManagerBasedRLEnv,
@@ -43,7 +78,8 @@ def episode_yaw_tracking(
     yaw_now = wrap_to_pi(yaw_now)
     yaw_err = wrap_to_pi(get_episode_yaw_ref(env) - yaw_now)
     return torch.exp(-torch.abs(yaw_err) / std)
-    # squared variant: torch.exp(-torch.square(yaw_err) / (std**2))
+
+
 def episode_xy_tracking(
     env: ManagerBasedRLEnv,
     std: float = 0.5,
@@ -54,6 +90,7 @@ def episode_xy_tracking(
     xy = asset.data.root_pos_w[:, :2] - env.scene.env_origins[:, :2]
     xy_err = get_episode_xy_ref(env) - xy
     return torch.exp(-torch.sum(torch.square(xy_err), dim=-1) / (std**2))
+
 
 def base_ang_vel_l2(
     env: ManagerBasedRLEnv,

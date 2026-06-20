@@ -45,7 +45,7 @@ class UavHoverSceneCfg(InteractiveSceneCfg):
     # robot spawned ~1 m above ground (reset event randomizes around this)
     robot: ArticulationCfg = STARLING2_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=STARLING2_CFG.init_state.replace(pos=(0.0, 0.0, 0.1)),
+        init_state=STARLING2_CFG.init_state.replace(pos=(0.0, 0.0, 1.0)),
     )
 
     # contact sensor - crash termination on ground/self contact
@@ -87,15 +87,17 @@ class ObservationsCfg:
 
     @configclass
     class ProprioCfg(ObsGroup):
-
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
-        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
-        xy_error = ObsTerm(func=mdp.hover_xy_error, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
 
-        last_action = ObsTerm(func=mdp.last_action)
-        # commanded - current height (m)
+        # projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
+        rotation = ObsTerm(func=mdp.base_rotation_6d, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
+
+        #position errors
+        xy_error = ObsTerm(func=mdp.hover_xy_error, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
         height_error = ObsTerm(func=mdp.hover_height_error, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
+        #last action
+        last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
@@ -133,7 +135,7 @@ class EventCfg:
                 # "roll": (-0.1745, 0.1745),  
                 # "pitch": (-0.1745, 0.1745),
                 # "yaw": (-3.14159, 3.14159),
-                "z": (0.0, 0.1),              # start at the 1 m default spawn height
+                "z": (0.0, 0.0),
                 "roll": (-0.0, 0.0),
                 "pitch": (-0.0, 0.0),
                 "yaw": (-3.14159, 3.14159),
@@ -187,52 +189,66 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the hover MDP."""
 
-    alive = RewTerm(func=mdp.is_alive, weight=0.1)
+    #alive = RewTerm(func=mdp.is_alive, weight=0.1)
 
-    # primary task: be at the commanded height
+    # hold: exp kernel (small std); active strongest near commanded height
     height_tracking = RewTerm(
-        func=mdp.hover_height_tracking, weight=10.0,
-        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
+        func=mdp.hover_height_tracking,
+        weight=10.0,
+        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    # climb: capped vz when more than height_tol below target
+    height_climb = RewTerm(
+        func=mdp.hover_height_climb,
+        weight=0.5,
+        params={"height_tol": 0.25, "v_cap": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    # overshoot: L1 above target (pairs with climb to prevent flying through)
+    height_overshoot = RewTerm(
+        func=mdp.hover_height_overshoot,
+        weight=-2.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
     )
     xy_tracking = RewTerm(
         func=mdp.episode_xy_tracking,
         weight=5.0,
-        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
+        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     # station-keeping + smooth, level, calm flight
-    horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.01)
-    lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.001)
+    #horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.05)
+    #lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.001)
     flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.001)
-    base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.001)
-    # ang_vel_xy 
+    base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.05)
+    # ang_vel_xy
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.001)
     episode_yaw = RewTerm(
-    func=mdp.episode_yaw_tracking,
-    weight=5.0,
-    params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},)
-    crash_penalty = RewTerm(
-        func=mdp.illegal_contact,
-        weight=-10.0,
-        params={
-            "threshold": 1.0,
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
-        },
+        func=mdp.episode_yaw_tracking,
+        weight=1.0,
+        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
-    # terminating = RewTerm(
-    #     func=mdp.is_terminated_term, weight=-10.0,
-    #     params={"term_keys": ["crash", "flipped"]},
+    # crash_penalty = RewTerm(
+    #     func=mdp.illegal_contact,
+    #     weight=-50.0,
+    #     params={
+    #         "threshold": 1.0,
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
+    #     },
     # )
+    terminating = RewTerm(
+        func=mdp.is_terminated_term, weight=-10.0,
+        params={"term_keys": ["crash"]},
+    )
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # crash = DoneTerm(
-    #     func=mdp.illegal_contact,
-    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
-    # )
+    crash = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
+    )
     # flipped = DoneTerm(
     #     func=mdp.bad_orientation,
     #     params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
