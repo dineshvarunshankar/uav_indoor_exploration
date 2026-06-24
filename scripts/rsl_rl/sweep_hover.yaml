@@ -22,8 +22,8 @@ command:
 
 parameters:
   # --- fixed task (same target + spawn for all trials) ---
-  env.events.set_hover_target_reset.params.height_range:       {value: [5.0, 5.0]}
-  env.events.set_hover_target_startup.params.height_range:     {value: [5.0, 5.0]}
+  env.events.set_hover_target_reset.params.height_range:       {value: [2.0, 2.0]}
+  env.events.set_hover_target_startup.params.height_range:     {value: [2.0, 2.0]}
   env.events.reset_base.params.pose_range.z:                   {value: [0.0, 0.0]}
   env.events.reset_base.params.pose_range.yaw:                {value: [0.0, 0.0]}
   env.events.randomize_mass.params.mass_distribution_params:   {value: [1.0, 1.0]}
@@ -47,8 +47,8 @@ parameters:
   env.rewards.action_rate.weight:                              {distribution: uniform, min: -0.1, max: 0.0}
   env.rewards.action_l2.weight:                                {distribution: uniform, min: -0.1, max: 0.0}
 
-  # --- crash (one-time penalty on crash termination) ---
-  env.rewards.terminating.weight:                              {distribution: uniform, min: -50.0, max: -1.0}
+  # --- crash (penalty-only; episodes end on timeout) ---
+  env.rewards.crash_penalty.weight:                            {distribution: uniform, min: -50.0, max: -1.0}
 
   # --- PPO ---
   agent.algorithm.learning_rate:                               {distribution: log_uniform_values, min: 0.0001, max: 0.001}

@@ -47,9 +47,7 @@ class UavIndoorSceneCfg(InteractiveSceneCfg):
         ),
         spawn=sim_utils.UsdFileCfg(usd_path=sky_usd),
     )
-    # scene: single SHARED instance (not per-env) so the thousands of colliders are paid for
-    # once instead of x num_envs. All robots fly in this one world; env_origins are ~0
-    # (env_spacing=0), so spawn-zone / opening coords are used directly as world coords.
+    # scene
     scene = AssetBaseCfg(
         prim_path="/World/ConstructionSite",
         init_state=AssetBaseCfg.InitialStateCfg(
@@ -111,6 +109,10 @@ class ActionsCfg:
         v_max_z=1.0,
         yaw_max=math.pi,
         motor_scale=1.0,
+        # randomize=True, #motor_tau, thrust scale, action delay
+        # max_action_delay_steps=2,
+        randomize=False,
+        max_action_delay_steps=0
     )
 
 
@@ -122,20 +124,13 @@ class ObservationsCfg:
     class ProprioCfg(ObsGroup):
         """Observations for policy group."""
 
-        # body (noise std mirrors real EKF/IMU/perception error so the policy can't
-        # rely on perfectly clean state at deploy time)
+        # velocity
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.07))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
-        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
-        # root_pos_w removed: absolute world position hurts generalization and is large/unnormalized.
-        # target_offset_body already gives the policy the relative bearing+distance it needs.
-        #base_pos_z = ObsTerm(func=mdp.base_pos_z)
+        #projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
+        rotation = ObsTerm(func=mdp.base_rotation_6d, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
 
-        # rotors: joint_vel_rel removed. Per-rotor RPM is not a reliable real-time
-        # observation on the real Starling 2, so training on it is a sim-only crutch.
-        #joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-
-        #prev actions (policy's own output: exact, no noise)
+        #prev action
         last_action = ObsTerm(func=mdp.last_action)
 
         #opening target (from perception/localization: largest real error source)

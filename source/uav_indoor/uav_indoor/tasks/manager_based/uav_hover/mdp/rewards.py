@@ -92,6 +92,38 @@ def episode_xy_tracking(
     return torch.exp(-torch.sum(torch.square(xy_err), dim=-1) / (std**2))
 
 
+def hold_x(
+    env: ManagerBasedRLEnv,
+    std: float = 0.5,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Hold the spawn x: exp(-|x_err|/std), in [0, 1]."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    x = asset.data.root_pos_w[:, 0] - env.scene.env_origins[:, 0]
+    return torch.exp(-torch.abs(get_episode_xy_ref(env)[:, 0] - x) / std)
+
+
+def hold_y(
+    env: ManagerBasedRLEnv,
+    std: float = 0.5,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Hold the spawn y: exp(-|y_err|/std), in [0, 1]."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    y = asset.data.root_pos_w[:, 1] - env.scene.env_origins[:, 1]
+    return torch.exp(-torch.abs(get_episode_xy_ref(env)[:, 1] - y) / std)
+
+
+def hold_z(
+    env: ManagerBasedRLEnv,
+    std: float = 1.0,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Hold the commanded height: exp(-|z_err|/std), in [0, 1]."""
+    _, z_err, _ = _height_state(env, asset_cfg)
+    return torch.exp(-torch.abs(z_err) / std)
+
+
 def base_ang_vel_l2(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
