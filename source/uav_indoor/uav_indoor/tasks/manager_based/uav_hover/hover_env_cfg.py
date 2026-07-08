@@ -94,12 +94,15 @@ class ObservationsCfg:
         rotation = ObsTerm(func=mdp.base_rotation_6d, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
 
         #position
-        base_pos = ObsTerm(func=mdp.base_pos, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
+        #base_pos = ObsTerm(func=mdp.base_pos, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
 
         #position errors
-        x_error = ObsTerm(func=mdp.hover_x_error, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
-        y_error = ObsTerm(func=mdp.hover_y_error, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
+        x_error_yaw = ObsTerm(func=mdp.hover_x_error_yaw, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
+        y_error_yaw = ObsTerm(func=mdp.hover_y_error_yaw, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
+        # x_error_body = ObsTerm(func=mdp.hover_x_error_body, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
+        # y_error_body = ObsTerm(func=mdp.hover_y_error_body, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
         height_error = ObsTerm(func=mdp.hover_height_error, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
+        yaw_error = ObsTerm(func=mdp.hover_yaw_error, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
         #last action
         last_action = ObsTerm(func=mdp.last_action)
 
@@ -139,7 +142,7 @@ class EventCfg:
                 # "roll": (-0.1745, 0.1745),  
                 # "pitch": (-0.1745, 0.1745),
                 # "yaw": (-3.14159, 3.14159),
-                "z": (0.0, 0.1),              # start at the 1 m default spawn height
+                "z": (0.0, 0.1),
                 "roll": (-0.0, 0.0),
                 "pitch": (-0.0, 0.0),
                 "yaw": (-3.14159, 3.14159),
@@ -174,7 +177,7 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "mass_distribution_params": (0.8, 1.2),
+            "mass_distribution_params": (1.0, 1.0),
             # "mass_distribution_params": (1.0, 1.0),
             "operation": "scale",
             "distribution": "uniform",
@@ -186,35 +189,91 @@ class EventCfg:
     mode="reset",
     params={"asset_cfg": SceneEntityCfg("robot")},
     )
-    
+
+    reset_airborne_flag = EventTerm(
+        func=mdp.reset_airborne_flag,
+        mode="reset",
+    )
+
 
 
 @configclass
 class RewardsCfg:
     """Reward terms for the hover MDP."""
 
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    alive = RewTerm(func=mdp.is_alive, weight=0.1)
 
-    track_x = RewTerm(func=mdp.hold_x, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
-    track_y = RewTerm(func=mdp.hold_y, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
-    track_z = RewTerm(func=mdp.hold_z, weight=2.0, params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")})
+    height_asymmetric_rbf = RewTerm(
+        func=mdp.hover_height_asymmetric_rbf,
+        weight=10.0,
+        params={"below_std": 0.8, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    climb_when_below = RewTerm(
+        func=mdp.hover_height_climb_when_below,
+        weight=2.0,
+        params={"height_tol": 0.3, "v_cap": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    vertical_damping_near_target = RewTerm(
+        func=mdp.hover_vertical_damping_near_target,
+        weight=-0.3,
+        params={"near_tol": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    x_yaw_rbf = RewTerm(
+        func=mdp.hold_x_yaw_rbf,
+        weight=1.0,
+        params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    y_yaw_rbf = RewTerm(
+        func=mdp.hold_y_yaw_rbf,
+        weight=1.0,
+        params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    horizontal_velocity = RewTerm(
+        func=mdp.horizontal_velocity_l2,
+        weight=-0.02,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    yaw_tracking = RewTerm(
+        func=mdp.episode_yaw_tracking,
+        weight=0.3,
+        params={"std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+    )
 
-    flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.1)
+    flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.3)
     base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.05)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
-
-    episode_yaw = RewTerm(
-        func=mdp.episode_yaw_tracking,
-        weight=1.0,
-        params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
-    )
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.001)
 
     crash_penalty = RewTerm(
-        func=mdp.illegal_contact,
+        func=mdp.illegal_contact_takeoff_aware,
         weight=-20.0,
-        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
+        params={
+            "threshold": 1.0,
+            "min_flight_height": 0.25,
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
     )
+
+    # --- previous reward set (kept for reference) ---
+    # alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    # track_x = RewTerm(func=mdp.hold_x, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
+    # track_y = RewTerm(func=mdp.hold_y, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
+    # track_z = RewTerm(func=mdp.hold_z, weight=2.0, params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")})
+    # flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.1)
+    # base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.05)
+    # action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    # action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
+    # episode_yaw = RewTerm(
+    #     func=mdp.episode_yaw_tracking,
+    #     weight=1.0,
+    #     params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
+    # )
+    # crash_penalty = RewTerm(
+    #     func=mdp.illegal_contact,
+    #     weight=-20.0,
+    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
+    # )
 
     # height_tracking = RewTerm(
     #     func=mdp.hover_height_tracking,
@@ -247,15 +306,23 @@ class TerminationsCfg:
     #     func=mdp.illegal_contact,
     #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
     # )
-    # flipped = DoneTerm(
-    #     func=mdp.bad_orientation,
-    #     params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
-    # )
+    crash = DoneTerm(
+        func=mdp.crashed_after_takeoff,
+        params={
+            "threshold": 1.0,
+            "min_flight_height": 0.25,
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
+    flipped = DoneTerm(
+        func=mdp.bad_orientation,
+        params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
+    )
 
 ##
 # Environment configuration
 ##
-
 
 @configclass
 class UavHoverEnvCfg(ManagerBasedRLEnvCfg):
@@ -271,7 +338,7 @@ class UavHoverEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         self.decimation = 2
-        self.episode_length_s = 60.0
+        self.episode_length_s = 10.0
         # viewer
         self.viewer.eye = (4.0, 0.0, 3.0)
         # simulation: 1/120 * decimation 2 -> ~60 Hz control

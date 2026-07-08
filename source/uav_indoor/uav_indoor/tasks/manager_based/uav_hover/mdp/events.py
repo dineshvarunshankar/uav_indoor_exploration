@@ -75,3 +75,20 @@ def record_episode_xy_ref(
     asset: Articulation = env.scene[asset_cfg.name]
     xy = asset.data.root_pos_w[env_ids, :2] - env.scene.env_origins[env_ids,:2]
     get_episode_xy_ref(env)[env_ids] = xy
+
+# airborne latch (for takeoff-aware crash penalty)
+
+def get_airborne_flag(env: ManagerBasedEnv) -> torch.Tensor:
+    if not hasattr(env, "has_been_airborne"):
+        env.has_been_airborne = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    return env.has_been_airborne
+
+def reset_airborne_flag(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+) -> None:
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device)
+    else:
+        env_ids = torch.as_tensor(env_ids, device=env.device, dtype=torch.long)
+    get_airborne_flag(env)[env_ids] = False
