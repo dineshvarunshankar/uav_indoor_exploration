@@ -73,6 +73,17 @@ class PX4VelocityAction(ActionTerm):
         self._act_delay = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._env_arange = torch.arange(self.num_envs, device=self.device)
 
+        # Controller-state latency, in physics steps. Only pos/lin_vel are delayed (EKF2
+        # path); attitude and body rates come off the gyro with filter delay only.
+        self._state_buf_len = max(int(cfg.ctrl_state_delay_steps) + 1, 1)
+        self._state_hist = torch.zeros(self.num_envs, self._state_buf_len, 6, device=self.device)
+        self._state_ptr = 0
+        self._state_init = False
+
+        # PX4 vehicle_land_detected stand-in: latched height test, matching the
+        # min_flight_height convention already used by the takeoff-aware crash terms.
+        self._in_air = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
     @property
     def action_dim(self) -> int:
         return 4
@@ -105,17 +116,44 @@ class PX4VelocityAction(ActionTerm):
         delayed = self._action_hist[self._env_arange, read_idx]
         self._hist_ptr = (self._hist_ptr + 1) % self._buf_len
 
-        self._processed_actions[:] = delayed * self._scale
+        # self._processed_actions[:] = delayed * self._scale
+        # tanh bounds commands to the PX4 velocity envelope (hardware saturates there too);
+        # yaw channel is a wrapped delta on current heading, not an absolute setpoint,
+        # so there is no ±pi discontinuity and action noise stays a small nudge
+        squashed = torch.tanh(delayed)
+        self._processed_actions[:, :3] = squashed[:, :3] * self._scale[:3]
+        _, _, yaw = euler_xyz_from_quat(self._asset.data.root_quat_w)
+        self._processed_actions[:, 3] = wrap_to_pi(yaw + squashed[:, 3] * self.cfg.yaw_delta_max)
+
+    def _delayed_state(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Root state as the controller sees it, optionally delayed by N physics steps.
+
+        Returns (pos_w, quat_w, lin_vel_w, ang_vel_w), delay uniform across envs.
+        """
+        data = self._asset.data
+        if self._state_buf_len == 1:
+            return data.root_pos_w, data.root_quat_w, data.root_lin_vel_w, data.root_ang_vel_w
+
+        now = torch.cat([data.root_pos_w, data.root_lin_vel_w], dim=-1)
+        if not self._state_init:
+            self._state_hist[:] = now.unsqueeze(1)
+            self._state_init = True
+        self._state_hist[:, self._state_ptr] = now
+        read_idx = (self._state_ptr - int(self.cfg.ctrl_state_delay_steps)) % self._state_buf_len
+        delayed = self._state_hist[:, read_idx]
+        self._state_ptr = (self._state_ptr + 1) % self._state_buf_len
+        return delayed[:, 0:3], data.root_quat_w, delayed[:, 3:6], data.root_ang_vel_w
 
     def apply_actions(self) -> None:
         """Once per physics step: rlPx4 -> per-rotor thrust/torque on rotor bodies (+Z)."""
         data = self._asset.data
         dt = self._env.physics_dt
 
-        pos = data.root_pos_w.detach().cpu().numpy()
-        vel = data.root_lin_vel_w.detach().cpu().numpy()
-        ang_vel = data.root_ang_vel_w.detach().cpu().numpy()
-        quat_w = data.root_quat_w
+        pos_t, quat_t, vel_t, ang_vel_t = self._delayed_state()
+        pos = pos_t.detach().cpu().numpy()
+        vel = vel_t.detach().cpu().numpy()
+        ang_vel = ang_vel_t.detach().cpu().numpy()
+        quat_w = quat_t
 
         vel_b = self._processed_actions[:, :3]
         vel_w = quat_apply(quat_w, vel_b)
@@ -123,7 +161,11 @@ class PX4VelocityAction(ActionTerm):
         actions_np = actions_w.detach().cpu().numpy()
         quat_np = quat_w.detach().cpu().numpy()
 
-        self._px4.set_status(pos, quat_np, vel, ang_vel, dt)
+        z_agl = self._asset.data.root_pos_w[:, 2] - self._env.scene.env_origins[:, 2]
+        self._in_air |= z_agl > self.cfg.in_air_height
+        in_air_np = self._in_air.float().detach().cpu().numpy()
+
+        self._px4.set_status(pos, quat_np, vel, ang_vel, dt, in_air_np)
         motor_np = self._px4.update(actions_np)
         motor_cmd = torch.as_tensor(motor_np, device=self.device, dtype=torch.float32)
 
@@ -188,16 +230,25 @@ class PX4VelocityAction(ActionTerm):
         _, _, yaw = euler_xyz_from_quat(self._asset.data.root_quat_w[env_ids_t])
         yaw = wrap_to_pi(yaw)
         self._processed_actions[env_ids_t, 3] = yaw
-        self._raw_actions[env_ids_t, 3] = yaw / self.cfg.yaw_max
+        # delta-yaw convention: zero raw action means "hold current heading"
+        # self._raw_actions[env_ids_t, 3] = yaw / self.cfg.yaw_max
+        self._raw_actions[env_ids_t, 3] = 0.0
 
         # re-initialize actuator-lag state (re-seeds to first command next step)
         self._thrust_state[env_ids_t] = 0.0
         self._thrust_init[env_ids_t] = False
+        self._in_air[env_ids_t] = False
+
+        # history holds pre-teleport pose; reseed it
+        if self._state_buf_len > 1:
+            data = self._asset.data
+            now = torch.cat([data.root_pos_w, data.root_lin_vel_w], dim=-1)[env_ids_t]
+            self._state_hist[env_ids_t] = now.unsqueeze(1)
 
         # seed the action-latency buffer with the reset command (vel=0, yaw held)
         n = env_ids_t.numel()
         self._action_hist[env_ids_t] = 0.0
-        self._action_hist[env_ids_t, :, 3] = (yaw / self.cfg.yaw_max).unsqueeze(1)
+        # self._action_hist[env_ids_t, :, 3] = (yaw / self.cfg.yaw_max).unsqueeze(1)
 
         # per-env domain randomization, resampled each reset
         if self.cfg.randomize:
@@ -227,6 +278,9 @@ class PX4VelocityActionCfg(ActionTermCfg):
     v_max_xy: float = 3.0
     v_max_z: float = 1.0
     yaw_max: float = math.pi
+    # max heading change commanded per step (rad); action[3] is a wrapped delta on
+    # current yaw, so effective turn authority should respect MC_YAWRATE_MAX on hardware
+    yaw_delta_max: float = 0.3
 
     # Throttle (post-THR_MDL_FAC mixer signal) -> omega
     # OLD: SysID polynomial (open-loop PWM bench fit)
@@ -240,8 +294,11 @@ class PX4VelocityActionCfg(ActionTermCfg):
     omega_min: float = 0.0
     omega_max: float = 1451.3110862033648   # 13859 rpm motor max
 
-    # from SysID
+    # SysID bench sweep, starling2_defaultrotor. Gives hover at thrust setpoint ~0.455
+    # rather than the configured MPC_THR_HOVER=0.34; the hover-thrust estimator adapts.
     k_thrust: float = -6.228022812483619e-07
+    # SysID bench sweep. k_torque/k_thrust = 0.0096 m vs aircraft CA_ROTOR*_KM = 0.05
+    # (PX4 default, unmeasured) -- unresolved discrepancy in yaw allocation.
     k_torque: float = 5.9902683625785134e-09
 
     # Spin direction for joint_vel visualization (+1 CCW, -1 CW when viewed from +Z)
@@ -268,3 +325,9 @@ class PX4VelocityActionCfg(ActionTermCfg):
     motor_tau_range: tuple[float, float] = (0.03, 0.07)      # near-hover lag spread
     k_thrust_scale_range: tuple[float, float] = (0.90, 1.05)  # battery sag / motor variation
     max_action_delay_steps: int = 2                           # command latency, in env steps
+
+    # EKF2 + transport latency, in physics steps (decimation=2 -> 1 env step == 2 here)
+    ctrl_state_delay_steps: int = 0
+
+    # airborne latch height, matches min_flight_height in the crash terms
+    in_air_height: float = 0.25

@@ -78,6 +78,10 @@ class ActionsCfg:
         # max_action_delay_steps=2,
         randomize=False,
         max_action_delay_steps=0,
+        # tau=0.05 with the 120 Hz sim rate loop is attitude-unstable (grows a
+        # +-15 deg hover wobble that sheds lift); 0.02 is stable and offsets the
+        # discretization lag that the real 1 kHz PX4 rate loop does not have
+        motor_tau=0.02,
     )
 
 
@@ -206,7 +210,8 @@ class RewardsCfg:
     height_asymmetric_rbf = RewTerm(
         func=mdp.hover_height_asymmetric_rbf,
         weight=10.0,
-        params={"below_std": 0.8, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+        # params={"below_std": 0.8, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+        params={"below_std": 0.3, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
     )
     climb_when_below = RewTerm(
         func=mdp.hover_height_climb_when_below,
@@ -235,7 +240,8 @@ class RewardsCfg:
     )
     yaw_tracking = RewTerm(
         func=mdp.episode_yaw_tracking,
-        weight=0.3,
+        # weight=0.3,
+        weight=1.5,
         params={"std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
     )
 

@@ -30,6 +30,8 @@ docker/.container.cfg
 # IDE
 **/.idea/
 **/.vscode/
+# Local Codex project instructions
+/AGENTS.md
 # Don't ignore the top-level .vscode directory as it is
 # used to configure VS Code settings
 !.vscode
@@ -66,6 +68,7 @@ _build
 
 # Tests
 tests/
+docs/
 
 # Docker history
 .isaac-lab-docker-history
