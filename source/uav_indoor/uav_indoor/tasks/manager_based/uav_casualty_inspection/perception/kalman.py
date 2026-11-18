@@ -14,10 +14,6 @@ class BatchedBoxKalman:
         max_tracks: int,
         device: torch.device | str,
         process_noise: float = 2.0e-3,
-        # Variance in normalized image units. 1e-4 is a standard deviation of 0.01, or one
-        # percent of image width, which is what a YOLO box actually jitters by. The old
-        # 1e-2 claimed ten percent, so the filter distrusted the camera and lagged behind
-        # real motion -- and the height servo reads this filtered box centre.
         measurement_noise: float = 1.0e-4,
         max_age_s: float = 0.75,
         association_distance: float = 0.25,
@@ -114,12 +110,7 @@ class BatchedBoxKalman:
         face_confidence: torch.Tensor,
         valid: torch.Tensor,
     ) -> None:
-        """Associate and update a padded batch of actual detections.
-
-        Greedy nearest-neighbour association, batched over environments: each round takes
-        the single best pair per environment, so the loop is bounded by track count rather
-        than environment count.
-        """
+        """Associate and update a padded batch of actual detections."""
 
         boxes_xywhn = boxes_xywhn.to(self.device)
         confidence = confidence.to(self.device)

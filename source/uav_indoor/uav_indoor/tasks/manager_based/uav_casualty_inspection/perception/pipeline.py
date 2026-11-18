@@ -92,13 +92,7 @@ class InspectionPerception:
         return (image * 255.0).to(torch.uint8)
 
     def tick(self, dt: float, rgb: torch.Tensor) -> bool:
-        """Advance ages and run each model on its own deployed inference period.
-
-        Both models run in every stage and at one rate. Running pose only from stage 1 left
-        the 96 track inputs at zero for the whole of stage 0, so ``obs_normalization``
-        learned zero mean and variance and the policy collapsed the moment real values
-        arrived. A lower rate in stage 0 would shift the age and freshness inputs instead.
-        """
+        """Advance ages and run each model on its own deployed inference period."""
 
         self.depth_age_s += dt
         self.pose_age_s += dt
@@ -171,12 +165,7 @@ class InspectionPerception:
 
     @property
     def track_range_m(self) -> torch.Tensor:
-        """Range to each track from the longest box side against a nominal person length.
-
-        A person measures about 1.70 m along their longest axis whether they stand or lie
-        down, so the longer box side is the stable one. Box height alone reads a lying
-        casualty as small and puts them 3.8x too far away.
-        """
+        """Range to each track from the longest box side against a nominal person length."""
 
         box_extent = self.tracker.state[..., 2:4].amax(dim=-1).clamp_min(0.02)
         focal_norm = 0.5 / math.tan(math.radians(self.cfg.vertical_fov_deg) / 2.0)

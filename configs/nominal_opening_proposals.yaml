@@ -1,0 +1,5 @@
+# Nominal simulator-only hint for the west facade integration gate.
+# This coordinate is not a deployment error measurement or actor observation.
+openings:
+  - id: nominal-west-floor-0-window-1
+    position: [0.340, 10.236, 11.155]

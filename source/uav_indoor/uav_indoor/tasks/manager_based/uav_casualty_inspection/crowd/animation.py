@@ -13,13 +13,7 @@ from pxr import Gf, UsdGeom
 
 
 class AnimatedCrowdAdapter:
-    """Attach and command animated characters inside Isaac Lab namespaces.
-
-    Casualties are deliberately left off the animation graph. ``omni.anim.people`` has no
-    lying command, and its sit command needs a seat prim to walk to, so a posture can only
-    come from setting the character transform directly. A character bound to the graph has
-    its transform owned by the graph, so the two cannot be mixed on one prim.
-    """
+    """Attach and command animated characters inside Isaac Lab namespaces."""
 
     def __init__(
         self,
@@ -75,13 +69,7 @@ class AnimatedCrowdAdapter:
         orientations: torch.Tensor,
         env_origins: torch.Tensor,
     ) -> None:
-        """Write casualty pose straight onto the prim. Call once; they do not move.
-
-        ``positions_w`` is in world coordinates, but the prim lives under
-        ``/World/envs/env_N`` whose own transform already carries the environment origin.
-        So the origin is subtracted before writing, or every casualty lands at twice its
-        environment offset.
-        """
+        """Write casualty pose straight onto the prim."""
 
         expected = (self.num_envs, self.num_casualties)
         if positions_w.shape != (*expected, 3) or orientations.shape != (*expected, 4):
@@ -93,9 +81,6 @@ class AnimatedCrowdAdapter:
         for env_index, person_index, prim in self._casualty_prims:
             position = host_position[env_index, person_index]
             w, x, y, z = host_orientation[env_index, person_index]
-            # One matrix op rather than separate translate and orient ops. The character
-            # prims already carry a double-precision orient op, and adding a float one
-            # raises rather than converting.
             matrix = Gf.Matrix4d()
             matrix.SetRotate(Gf.Quatd(float(w), Gf.Vec3d(float(x), float(y), float(z))))
             matrix.SetTranslateOnly(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])))
@@ -114,7 +99,7 @@ class AnimatedCrowdAdapter:
         speed: torch.Tensor,
         moving: torch.Tensor,
     ) -> None:
-        """Send walk or idle commands to the walkers. Casualties are not commanded."""
+        """Send walk or idle commands to the walkers."""
         expected = (self.num_envs, self.num_people)
         if destination.shape != (*expected, 3):
             raise ValueError(f"destination must have shape {(*expected, 3)}")

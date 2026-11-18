@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """This sub-module contains the functions that are specific to the environment."""
@@ -12,3 +10,4 @@ from .events import *
 from .observations import *
 from .actions import *
 from .opening_targets import *
+from .mission import *

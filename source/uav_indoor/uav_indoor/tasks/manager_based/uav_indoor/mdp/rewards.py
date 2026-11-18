@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
@@ -22,14 +20,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-# def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-#     """Penalize joint position deviation from a target value."""
-#     # extract the used quantities (to enable type-hinting)
-#     asset: Articulation = env.scene[asset_cfg.name]
-#     # wrap the joint positions to (-pi, pi)
-#     joint_pos = wrap_to_pi(asset.data.joint_pos[:, asset_cfg.joint_ids])
-#     # compute the reward
-#     return torch.sum(torch.square(joint_pos - target), dim=1)
 
 
 def _get_asset(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> Articulation:
@@ -42,7 +32,6 @@ def _dist_to_opening(env:ManagerBasedRLEnv, asset: Articulation) -> torch.Tensor
     return torch.norm(offset_to_opening_env(env, asset), dim=-1)
 
 
-#task rewards
 
 def distance_to_opening_exp(
     env:ManagerBasedRLEnv,
@@ -81,7 +70,7 @@ def body_axis_aligned_to_opening(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Reward forward body axis pointing at opening (3D). Assumes body +X is forward."""
+    """Reward forward body axis pointing at opening (3D)."""
     asset = _get_asset(env, asset_cfg)
     delta_b = offset_to_opening_body(env, asset)
     delta_b = delta_b / (torch.norm(delta_b, dim=-1, keepdim=True) + 1e-8)
@@ -92,9 +81,7 @@ def at_opening(
     success_radius: float = 0.7,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """One-time success bonus. Pair with the ``reached_opening`` termination so the
-    episode ends on the same step this fires; the reward manager scales by dt, so use a
-    large weight (~success_radius bonus / dt) to make the one-shot bonus meaningful."""
+    """One-time success bonus."""
     asset = _get_asset(env, asset_cfg)
     d = _dist_to_opening(env, asset)
     return (d < success_radius).float()
@@ -105,12 +92,7 @@ def reached_opening(
     success_radius: float = 0.7,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Episode-ending success: True once the drone is within ``success_radius`` of the goal.
-
-    Ending the episode on success makes per-step camping at the target impossible.
-    Keep ``success_radius`` identical to the ``at_opening`` reward so the bonus fires
-    exactly on the terminal step.
-    """
+    """Episode-ending success: True once the drone is within ``success_radius`` of the goal."""
     asset = _get_asset(env, asset_cfg)
     d = _dist_to_opening(env, asset)
     return d < success_radius

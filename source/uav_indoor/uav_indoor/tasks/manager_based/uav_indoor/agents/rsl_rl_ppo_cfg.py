@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.utils import configclass
@@ -19,8 +17,8 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     logger = "wandb"
     wandb_project = "UAV_Indoor_Exploration"
     obs_groups = {
-        "actor": ["proprio"], #, "tof"],
-        "critic": ["proprio"], #, "tof"],
+        "actor": ["proprio"],
+        "critic": ["proprio", "critic"],
     }
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,

@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration for the quadcopters"""
@@ -10,11 +8,7 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-#from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-##
-# Configuration
-##
 STARLING2_USD = (
     "omniverse://airlab-nucleus.andrew.cmu.edu//Public/DTC/robots/starling2_preliminary.usd"
 )
@@ -31,12 +25,8 @@ STARLING2_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            # solver_position_iteration_count=5, #checks position error and tries to fix it. Long kinematic chains/loaded robots need more iterations.
-            # solver_velocity_iteration_count=0, #solves friction and restitution(bounce) forces after positions are locked.
-            # sleep_threshold=0.005, #stops calculating physics when kinetic energy(masss*velocity) is below this threshold.
-            # stabilization_threshold=0.001, #jitter reduction; if velocity is below this threshold, solver applies additional damping to reduce jitter.
         ),
-        copy_from_source=False, #duplicate actual geometry and mesh to N envs
+        copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         
@@ -46,8 +36,8 @@ STARLING2_CFG = ArticulationCfg(
         joint_vel={".*": 0.0,},
     ),
     actuators={
-        "rotors": ImplicitActuatorCfg( #add more actuators if required (for example, gimbal, gripper, etc.)
-            joint_names_expr=[".*"], #all joints
+        "rotors": ImplicitActuatorCfg(
+            joint_names_expr=[".*"],
             stiffness=0.0, # P gain for position control
             damping=0.0, # D gain for velocity control
         ),

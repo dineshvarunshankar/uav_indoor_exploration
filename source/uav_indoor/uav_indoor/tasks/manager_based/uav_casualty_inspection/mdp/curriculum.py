@@ -15,11 +15,7 @@ def staged_mission_curriculum(
     success_rate: float = 0.6,
     minimum_transitions: int = 20_000,
 ) -> torch.Tensor:
-    """Promote a stage once recent episodes actually complete their missions.
-
-    Sample count only gates the earliest possible promotion. The stage advances on the
-    rolling completion rate, so a stage that is not being solved is never left behind.
-    """
+    """Promote based on recent mission completion."""
 
     del env_ids
     if env.cfg.auto_curriculum and env.cfg.curriculum_stage < FINAL_STAGE:

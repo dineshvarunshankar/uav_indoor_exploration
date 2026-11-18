@@ -24,18 +24,15 @@ def base_rotation_6d(
     R = matrix_from_quat(asset.data.root_quat_w)
     return torch.cat([R[:, :, 0], R[:, :, 1]], dim=-1)
 
-# height error
 def hover_height_error(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Commanded height minus current height (world z, meters), shape (num_envs, 1).
-    """
+    """Commanded height minus current height (world z, meters), shape (num_envs, 1)."""
     asset: Articulation = env.scene[asset_cfg.name]
     z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
     target = get_hover_target(env)
     return (target - z).unsqueeze(-1)
-# xy error (yaw frame: horizontal error rotated by heading only, ignores roll/pitch)
 def hover_xy_error_yaw(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -61,36 +58,6 @@ def base_pos(
     return quat_apply_inverse(asset.data.root_quat_w, p)
 
 
-# --- full body-frame (roll + pitch + yaw) position error ---
-# def _pos_error_body(
-#     env: ManagerBasedRLEnv,
-#     asset_cfg: SceneEntityCfg,
-# ) -> torch.Tensor:
-#     """Position error (target - current) rotated into the full body frame (m)."""
-#     asset: Articulation = env.scene[asset_cfg.name]
-#     pos = asset.data.root_pos_w[:, :3] - env.scene.env_origins
-#     target_xy = get_episode_xy_ref(env)
-#     err_w = torch.stack(
-#         [target_xy[:, 0] - pos[:, 0], target_xy[:, 1] - pos[:, 1], get_hover_target(env) - pos[:, 2]],
-#         dim=-1,
-#     )
-#     return quat_apply_inverse(asset.data.root_quat_w, err_w)
-#
-#
-# def hover_x_error_body(
-#     env: ManagerBasedRLEnv,
-#     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-# ) -> torch.Tensor:
-#     """Body-frame x component of the position error to target (m)."""
-#     return _pos_error_body(env, asset_cfg)[:, 0:1]
-#
-#
-# def hover_y_error_body(
-#     env: ManagerBasedRLEnv,
-#     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-# ) -> torch.Tensor:
-#     """Body-frame y component of the position error to target (m)."""
-#     return _pos_error_body(env, asset_cfg)[:, 1:2]
 
 
 def hover_x_error_yaw(

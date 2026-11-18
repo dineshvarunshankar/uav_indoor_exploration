@@ -1,8 +1,4 @@
-"""Protected breadcrumb route for opening entry and exit.
-
-The buffer records the corridor from the exterior checkpoint through the entry manoeuvre.
-The aircraft leaves by flying the same crumbs in reverse while it faces forward.
-"""
+"""Protected breadcrumb route for opening entry and exit."""
 
 from __future__ import annotations
 
@@ -13,13 +9,10 @@ import torch
 BREADCRUMB_FIELDS = 6  # position, yaw, clearance, and time
 
 
-@dataclass(frozen=True)
+# Mutable Hydra configuration.
+@dataclass
 class RecoveryCfg:
-    """Route capacity and spacing.
-
-    PROVISIONAL. 32 crumbs at 0.25 m cover about 8 m of corridor, which exceeds the
-    0.75 m to 1.0 m entry depth by a wide margin.
-    """
+    """Route capacity and spacing."""
 
     max_breadcrumbs: int = 32
     min_spacing_m: float = 0.25
@@ -27,12 +20,7 @@ class RecoveryCfg:
 
 
 class BreadcrumbBuffer:
-    """Batched entry route with a protected write path.
-
-    Writes are accepted only while the buffer records. Sealing it blocks every later
-    write, including an offboard update. A full buffer stops recording instead of
-    overwriting its start, because the earliest crumbs are the way back outside.
-    """
+    """Batched entry route with a protected write path."""
 
     def __init__(
         self,

@@ -39,7 +39,7 @@ def assign_random_opening_targets(
     targets = get_opening_targets(env)
     idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
     targets[env_ids] = openings[idx]
-    _sync_progress_baseline(env, env_ids)  # see below
+    _sync_progress_baseline(env, env_ids)
 
 
 def _sync_progress_baseline(env, env_ids):

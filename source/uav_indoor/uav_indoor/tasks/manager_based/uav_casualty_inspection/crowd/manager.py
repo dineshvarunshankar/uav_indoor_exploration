@@ -18,12 +18,7 @@ class Behavior(IntEnum):
 
 
 class Posture(IntEnum):
-    """Casualty posture, as a tilt away from upright.
-
-    The character asset is a standing rig, so a posture is a rotation of that rig. That
-    gives the right geometry -- body centre height and apparent extent, which is what the
-    camera and the height servo see -- but not a natural pose.
-    """
+    """Casualty posture, as a tilt away from upright."""
 
     STANDING = 0
     SITTING = 1
@@ -39,8 +34,6 @@ class CrowdManager:
     """Own bounded motion state for ten people in each environment."""
 
     num_people = 10
-    # Every person is a casualty. The end-to-end mission inspects all ten, so there are no
-    # bystanders; the moving vehicle and rogue drone supply the dynamic obstacles.
     num_targets = 10
 
     def __init__(
@@ -63,8 +56,6 @@ class CrowdManager:
             raise ValueError(f"env_origins must have shape ({num_envs}, 3)")
         self.env_origins = env_origins.to(self.device).clone()
 
-        # Must match PERSON_POSITIONS in the scene config: the animation runtime owns the
-        # real positions and overwrites this ring after the first step.
         bearings = [0, 41, 77, 108, 145, 183, 219, 256, 291, 325]
         angle = torch.deg2rad(torch.tensor(bearings, device=self.device, dtype=torch.float32))
         radius = torch.tensor([16.0, 22.0, 27.0, 14.0, 25.0, 19.0, 28.0, 15.0, 23.0, 20.0], device=self.device)
@@ -79,7 +70,6 @@ class CrowdManager:
         self.is_target[:, : self.num_targets] = True
         initial_behavior = torch.tensor(
             [
-                # Casualties do not walk, so the GPS seed stays accurate.
                 *([Behavior.IDLE] * 10),
             ],
             dtype=torch.long,
@@ -94,8 +84,6 @@ class CrowdManager:
             generator=self._generator,
             device=self.device,
         )
-        # Facing and posture vary per person per environment. Without this the drone sees
-        # one casualty pose from one angle and learns only that.
         self.yaw = 2.0 * math.pi * torch.rand(
             num_envs, self.num_people, generator=self._generator, device=self.device
         )
@@ -184,20 +172,13 @@ class CrowdManager:
 
     @property
     def ground_clearance_m(self) -> torch.Tensor:
-        """Lift needed so a tilted body rests on the ground instead of sinking into it.
-
-        The character pivot is at the feet. Rotating a standing rig about that pivot puts
-        the body axis in the ground plane, so half the body ends up below z = 0.
-        """
+        """Return ground clearance for the tilted body."""
 
         return PERSON_RADIUS_M * torch.sin(self.tilt)
 
     @property
     def body_centre_height_m(self) -> torch.Tensor:
-        """Height of the body centre above ground, given the posture.
-
-        Upright the centre sits at half the body height. Flat it sits at the body radius.
-        """
+        """Height of the body centre above ground, given the posture."""
 
         return PERSON_RADIUS_M + (PERSON_HALF_HEIGHT_M - PERSON_RADIUS_M) * torch.cos(self.tilt)
 

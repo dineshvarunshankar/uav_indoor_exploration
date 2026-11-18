@@ -103,8 +103,6 @@ class CasualtyInspectionEnv(ManagerBasedRLEnv):
             device=self.device,
         )
         self.crowd_animation.attach()
-        # Casualties are static, so their pose is written once. Posture and facing vary per
-        # casualty per environment, otherwise the drone only ever learns one approach.
         casualty_position = self.crowd.position[:, : self.crowd.num_targets].clone()
         casualty_position[..., 2] += self.crowd.ground_clearance_m[:, : self.crowd.num_targets]
         self.crowd_animation.place_casualties(
@@ -114,12 +112,7 @@ class CasualtyInspectionEnv(ManagerBasedRLEnv):
         )
 
     def _ensure_perception_current(self) -> None:
-        """Run perception and the mission once per env step, on the post-physics state.
-
-        ``common_step_counter`` increments straight after the physics loop and before
-        terminations, so the first access from any manager term refreshes the state the
-        policy is judged against. Mirrors how Isaac Lab sensors refresh their buffers.
-        """
+        """Run perception and the mission once per env step, on the post-physics state."""
 
         if self._mission_step == self.common_step_counter:
             return
@@ -293,9 +286,6 @@ class CasualtyInspectionEnv(ManagerBasedRLEnv):
         self._previous_mission_phase[:] = self._mission_reference.phase
 
     def _write_crowd_state(self) -> None:
-        # The capsule must follow the posture. A lying casualty whose collision body stayed
-        # upright would be an invisible 1.7 m pole the drone cannot see and cannot descend
-        # past, and minimum_clearance would measure the pole instead of the person.
         proxy_position = self.crowd.position.clone()
         proxy_position[..., 2] += self.crowd.body_centre_height_m
         proxy_pose = torch.cat((proxy_position, self.crowd.orientation_wxyz()), dim=-1)

@@ -32,12 +32,7 @@ class DetectionBatch:
 
 
 def _use_local_prompt_encoder(encoder_path: Path) -> None:
-    """Point Ultralytics at the local text encoder.
-
-    Ultralytics resolves ``mobileclip2_b.ts`` against the working directory and
-    then against a relative weights directory. Without this the prompt setup
-    downloads 254 MB into whatever directory the caller started from.
-    """
+    """Point Ultralytics at the local text encoder."""
 
     if not encoder_path.is_file():
         raise FileNotFoundError(f"YOLOE prompt encoder does not exist: {encoder_path}")
@@ -54,18 +49,12 @@ def _prefer_environment_filelock() -> None:
     except ImportError:
         return
     if not hasattr(filelock, "AsyncFileLock"):
-        # Ultralytics imports this for asynchronous dataset conversion. Local
-        # checkpoint inference never enters that path, so the synchronous lock
-        # is a compatible stand-in and avoids modifying Isaac Sim's environment.
+        # Synchronous filelock fallback for inference.
         filelock.AsyncFileLock = filelock.FileLock
 
 
 class YoloePromptDetector:
-    """Ultralytics YOLOE runner with a fixed text-prompt vocabulary.
-
-    The checkpoint and the prompt encoder stay outside the repository. Ultralytics
-    loads at the first inference, so the task modules import without it.
-    """
+    """Ultralytics YOLOE runner with a fixed text-prompt vocabulary."""
 
     def __init__(
         self,

@@ -10,10 +10,8 @@ from isaaclab.utils import math as math_utils
 from .opening_targets import assign_random_opening_targets
 
 _spawn_yaml = Path(__file__).resolve().parent.parent / "spawn_zones.yaml"
-# _openings_yaml = Path(__file__).resolve().parent.parent / "openings.yaml"
 
 
-#load spawn zones
 def load_spawn_zones(path: Path | None = None) -> torch.Tensor:
     """Load spawn zones as (N, 5) tensor: x_min, y_min, x_max, y_max, z in meters."""
     path = path or _spawn_yaml
@@ -27,6 +25,15 @@ def load_spawn_zones(path: Path | None = None) -> torch.Tensor:
 
 global_spawn_zones = load_spawn_zones()
 
+exterior_building_spawn_zones = torch.tensor(
+    [
+        [30.0, -110.0, 65.0, -98.0, 3.0],
+        [86.0, -60.0, 98.0, -20.0, 3.0],
+        [20.0, 28.0, 65.0, 40.0, 3.0],
+    ],
+    dtype=torch.float32,
+)
+
 
 def reset_spawn_position(
     env: ManagerBasedEnv,
@@ -37,7 +44,7 @@ def reset_spawn_position(
     pitch_range: tuple[float, float] = (-0.1, 0.1),
     yaw_range: tuple[float, float] = (-3.14159, 3.14159),
     spawn_zones: torch.Tensor | None = None,
-    z_noise_m: float = 0.5, #Z jitter on random resets (meters), applied on top of zone z
+    z_noise_m: float = 0.5,
 ):
     """Reset root pose from spawn_zones.yaml; randomized on every reset, including the first."""
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
@@ -46,7 +53,6 @@ def reset_spawn_position(
 
     n = len(env_ids)
 
-    #positions
     idx = torch.randint(0, spawn_zones.shape[0], (n,), device=asset.device)
     r = spawn_zones[idx]
     x = math_utils.sample_uniform(r[:,0], r[:,2], (n,), device=asset.device)
@@ -56,59 +62,18 @@ def reset_spawn_position(
     z = z_base + z_noise
     positions = torch.stack([x, y, z], dim=-1) + env.scene.env_origins[env_ids]
 
-    #orientations
     roll = math_utils.sample_uniform(roll_range[0], roll_range[1], (n,), device=asset.device)
     pitch = math_utils.sample_uniform(pitch_range[0], pitch_range[1], (n,), device=asset.device)
     yaw = math_utils.sample_uniform(yaw_range[0], yaw_range[1], (n,), device=asset.device)
     orientations = math_utils.quat_from_euler_xyz(roll, pitch, yaw)
 
-    #velocities
     range_list = [velocity_range.get(k, (0.0, 0.0)) for k in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, dtype=torch.float32, device=asset.device)
     velocities = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (n, 6), device=asset.device)
 
-    #write to sim
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 def reset_opening_target(env, env_ids, openings=None):
     """Event callback: sample new opening goals (mode='reset' or 'startup')."""
     assign_random_opening_targets(env, env_ids, openings)
-
-# #load openings
-# def load_openings(path: Path | None = None) -> torch.Tensor:
-#     """Load openings as (N, 3) tensor: x, y, z in meters."""
-#     path = path or _openings_yaml
-#     with open(path) as f:
-#         data = yaml.safe_load(f)
-#     return torch.tensor(data["openings"], dtype=torch.float32)
-
-
-# global_openings = load_openings()
-
-# def get_opening_targets(
-#     env:ManagerBasedEnv,
-#     device:torch.device,
-# ) -> torch.Tensor:
-#     if not hasattr(env, "opening_target_env"):
-#         env.opening_target_env = torch.zeros(env.num_envs, 3, device=device)
-#     return env.opening_target_env
-
-# def reset_opening_target(
-#     env: ManagerBasedEnv,
-#     env_ids: torch.Tensor,
-#     openings: torch.Tensor | None = None,
-# ):
-#     """Sample opening per env; env-local meters. Init progress reward distance."""
-#     openings = openings if openings is not None else global_openings
-#     openings = openings.to(device=env.device)
-#     target = _ensure_opening_target_buffer(env, env.device)
-#     idx = torch.randint(0, openings.shape[0], (len(env_ids),), device=env.device)
-#     target[env_ids] = openings[idx]
-
-#     asset = env.scene["robot"]
-#     robot_pos_env = asset.data.root_pos_w[env_ids] - env.scene.env_origins[env_ids]
-#     dist = torch.norm(target[env_ids] - robot_pos_env, dim=-1)
-#     if not hasattr(env, "_prev_dist_to_opening"):
-#         env._prev_dist_to_opening = torch.zeros(env.num_envs, device=env.device)
-#     env._prev_dist_to_opening[env_ids] = dist

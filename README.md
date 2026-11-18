@@ -1,135 +1,67 @@
-# Template for Isaac Lab Projects
+# UAV Indoor Exploration
 
-## Overview
+A research prototype for Starling 2 UAV navigation and building-opening inspection in Isaac Lab.
+It combines PPO policies, a PX4-style controller, relative-disparity perception, and a mission supervisor.
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
+## Setup
 
-**Key Features:**
-
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
-
-**Keywords:** extension, template, isaaclab
-
-## Installation
-
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda or uv installation as it simplifies calling Python scripts from the terminal.
-
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
-
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
-
-    ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-    python -m pip install -e source/uav_indoor
-
-- Verify that the extension is correctly installed by:
-
-    - Listing the available tasks:
-
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/list_envs.py
-        ```
-
-    - Running a task:
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
-        ```
-
-    - Running a task with dummy agents:
-
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-        - Zero-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
-
-### Set up IDE (Optional)
-
-To setup the IDE, please follow these instructions:
-
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
-
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
-
-### Setup as Omniverse Extension (Optional)
-
-We provide an example UI extension that will load upon enabling your extension defined in `source/uav_indoor/uav_indoor/ui_extension_example.py`.
-
-To enable your extension, follow these steps:
-
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
-
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
-
-## Code formatting
-
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
+Use a Python environment with Isaac Lab and RSL-RL installed.
 
 ```bash
-pip install pre-commit
+git clone https://github.com/dineshvarunshankar/uav_indoor_exploration.git
+cd uav_indoor_exploration
+python -m pip install -e source/uav_indoor
 ```
 
-Then you can run pre-commit with:
+Perception requires ONNX Runtime with CUDA support and Ultralytics.
+Set the model and scene paths for your environment:
+
+| Asset | Configuration |
+|---|---|
+| Starling 2 USD | [Robot configuration](source/uav_indoor/uav_indoor/assets/starling_2/starling_2.py) |
+| Construction-site USD | [Building environment](source/uav_indoor/uav_indoor/tasks/manager_based/uav_indoor/building_inspection/env_cfg.py) |
+| MiDaS ONNX model | [MiDaS configuration](source/uav_indoor/uav_indoor/tasks/manager_based/uav_indoor/perception/midas.py) |
+| YOLOE weights and MobileCLIP prompt encoder | [Detector configuration](source/uav_indoor/uav_indoor/tasks/manager_based/uav_indoor/perception/yoloe.py) |
+
+The default USD paths require access to the AirLab Nucleus server. Model weights are external files.
+
+## Run
+
+List registered tasks:
 
 ```bash
-pre-commit run --all-files
+python scripts/list_envs.py
 ```
 
-## Troubleshooting
+Train obstacle navigation:
 
-### Pylance Missing Indexing of Extensions
-
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
-
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/uav_indoor"
-    ]
-}
+```bash
+python scripts/rsl_rl/train.py \
+  --task Template-Uav-Obstacle-Navigation-v0 \
+  --num_envs 64 --headless --enable_cameras
 ```
 
-### Pylance Crash
+Replay a checkpoint from the same task:
 
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
-
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
+```bash
+python scripts/rsl_rl/play.py \
+  --task Template-Uav-Obstacle-Navigation-v0 \
+  --checkpoint /path/to/model.pt \
+  --num_envs 1 --enable_cameras
 ```
+
+| Task | Environment ID |
+|---|---|
+| Indoor navigation | `Template-Uav-Indoor-v0` |
+| Obstacle navigation | `Template-Uav-Obstacle-Navigation-v0` |
+| Building inspection | `Template-Uav-Building-Inspection-v0` |
+| Opening-entry curriculum | `Template-Uav-Entry-Curriculum-v0` |
+
+## Project Structure
+
+| Path | Contents |
+|---|---|
+| `source/uav_indoor/` | Robot assets, environments, policies, perception, and mission logic |
+| `scripts/rsl_rl/` | Training, checkpoint replay, and curriculum evaluation |
+| `scripts/diagnostics/` | Simulation diagnostics |
+| `configs/` | Opening proposals and evaluation limits |
