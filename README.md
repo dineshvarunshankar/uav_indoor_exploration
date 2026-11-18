@@ -1,11 +1,10 @@
 # UAV Indoor Exploration
 
-A research prototype for Starling 2 UAV navigation and building-opening inspection in Isaac Lab.
-It combines PPO policies, a PX4-style controller, relative-disparity perception, and a mission supervisor.
+Learning waypoint control for Starling 2 UAV exploration and building-opening inspection in Isaac Lab, using recurrent PPO with `rlPx4Controller`.
 
 ## Setup
 
-Use a Python environment with Isaac Lab and RSL-RL installed.
+Use a Python environment with Isaac Lab, RSL-RL, and `rlPx4Controller` installed.
 
 ```bash
 git clone https://github.com/dineshvarunshankar/uav_indoor_exploration.git
