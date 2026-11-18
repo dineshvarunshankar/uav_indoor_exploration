@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Installation script for the 'uav_indoor' python package."""
@@ -10,18 +8,13 @@ import os
 import toml
 from setuptools import setup
 
-# Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
-# Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-# Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
-    # NOTE: Add dependencies
     "psutil",
 ]
 
-# Installation operation
 setup(
     name="uav_indoor",
     packages=["uav_indoor"],

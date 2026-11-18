@@ -21,8 +21,6 @@ class MissionPhase(IntEnum):
     DONE = 6
 
 
-#: One row per curriculum stage. Each stage adds exactly one skill, so a failure names
-#: the skill that failed. Stage 0 uses point navigation and ignores the terminal phase.
 STAGE_TERMINAL_PHASE = (6, 1, 2, 3, 4, 4, 4, 4)
 STAGE_TARGET_COUNT = (1, 1, 1, 1, 1, 1, 2, 10)
 STAGE_HAZARDS_ACTIVE = (False, False, False, False, False, True, True, True)
@@ -76,14 +74,7 @@ def point_navigation_reference(
     inspection_height_m: float = 2.0,
     descent_radius_m: float = 5.0,
 ) -> MissionReference:
-    """Create a reference that follows the current position of a moving target.
-
-    A survey profile: transit high, then descend into the zone to search.
-
-    Far from the zone the goal sits at ``cruise_height_m``, which clears the 4 m poles.
-    Inside ``descent_radius_m`` it blends down to ``inspection_height_m``. The blend is
-    smooth, so the reference never jumps and the progress term stays continuous.
-    """
+    """Create a reference that follows the current position of a moving target."""
 
     horizontal = torch.linalg.vector_norm(target_position_w[:, :2] - robot_position_w[:, :2], dim=-1)
     blend = (horizontal / descent_radius_m).clamp(0.0, 1.0)
@@ -131,11 +122,7 @@ def minimum_scene_clearance(
 
 
 class InspectionMissionSupervisor:
-    """Batch mission state machine for ordered GPS seeds and detected casualties.
-
-    Track positions are estimates from deployable perception. Simulator identities are
-    deliberately absent from this API so they cannot leak into actor-side decisions.
-    """
+    """Batch mission state machine for ordered GPS seeds and detected casualties."""
 
     def __init__(
         self,
@@ -159,8 +146,6 @@ class InspectionMissionSupervisor:
         self._last_target_position = torch.zeros(num_envs, 3, device=self.device)
         self._last_target_valid = torch.zeros(num_envs, dtype=torch.bool, device=self.device)
         self._arc_center_angle = torch.zeros(num_envs, device=self.device)
-        # The stage's last phase. A casualty counts as done on reaching it, so stage 1 can
-        # ask only for "see somebody" while stage 4 asks for the whole recording arc.
         self.terminal_phase = int(MissionPhase.RECORD)
         self._search_angle = torch.zeros(num_envs, device=self.device)
 
@@ -204,11 +189,7 @@ class InspectionMissionSupervisor:
         track_confidence: torch.Tensor,
         track_age_s: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Match on bearing, not on world distance.
-
-        Bearing comes from the box centre alone. World distance carries the range estimate,
-        which rests on an assumed person size and is the least reliable part of a track.
-        """
+        """Match target bearings."""
 
         valid = (track_confidence > 0.25) & (track_age_s <= self.cfg.max_tracking_age_s)
         to_gps = gps_w[:, :2] - robot_position_w[:, :2]
@@ -233,19 +214,7 @@ class InspectionMissionSupervisor:
         return torch.where(valid, gathered, torch.full_like(gathered, default))
 
     def _servo_height(self, robot_position_w: torch.Tensor, image_y: torch.Tensor) -> torch.Tensor:
-        """Height that puts the tracked box at image centre, above a detection floor.
-
-        The box centre sits ``(image_y - 0.5)`` of the vertical view away from the centre.
-        Convert that to an angle and drop it onto the commanded standoff. The estimated
-        range is not used: it assumes a 1.70 m standing person and is 3.8x wrong for a
-        casualty who lies down.
-
-        The floor matters. Centring the box on a casualty lying flat asks for their body
-        centre at 0.30 m, and measured detection there is 0 to 23 per cent because a
-        forward camera sees them edge on. At 0.7 to 1.5 m it is 65 to 68 per cent. A
-        forward-facing camera cannot centre a horizontal target, so the geometric answer
-        and the useful one differ, and the reward lets the policy search above this.
-        """
+        """Height that puts the tracked box at image centre, above a detection floor."""
 
         half_fov = 0.5 * math.radians(self.cfg.vertical_fov_deg)
         elevation = (-(image_y - 0.5) * 2.0 * half_fov).clamp(-half_fov, half_fov)
@@ -356,8 +325,6 @@ class InspectionMissionSupervisor:
         finished_record = recording & record_valid & (self.phase_time >= self.cfg.arc_duration_s)
         self._transition(finished_record, MissionPhase.COMPLETE)
 
-        # Stop at the stage's terminal phase. Placed before the COMPLETE block so a casualty
-        # finishes on the same step it passes the target phase.
         beyond = (self.phase > self.terminal_phase) & (self.phase < int(MissionPhase.COMPLETE))
         self._transition(beyond, MissionPhase.COMPLETE)
 
@@ -372,7 +339,6 @@ class InspectionMissionSupervisor:
             self._transition(more, MissionPhase.APPROACH)
             self._transition(complete & ~more, MissionPhase.DONE)
 
-        # Non-inspection phases point to the current GPS seed and keep current height.
         non_inspection = self.phase <= int(MissionPhase.OBSERVE)
         approach_position = gps_w.clone()
         approach_position[:, 2] = torch.maximum(gps_w[:, 2], robot_position_w[:, 2])
@@ -380,8 +346,6 @@ class InspectionMissionSupervisor:
         bearing_to_gps = torch.atan2(gps_w[:, 1] - robot_position_w[:, 1], gps_w[:, 0] - robot_position_w[:, 0])
         reference_yaw = torch.where(non_inspection, bearing_to_gps, reference_yaw)
 
-        # Orbit the person at standoff instead of holding station and yawing. Yawing the
-        # aircraft cannot change which way the person faces; translating around them can.
         search = self.phase == int(MissionPhase.SEARCH_FACE)
         advanced_angle = wrap_pi(self._search_angle + self.cfg.search_orbit_rate_rad_s * dt)
         self._search_angle = torch.where(

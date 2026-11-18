@@ -9,10 +9,7 @@ import torch
 
 
 class DetectionRole(IntEnum):
-    """Mission role assigned to one prompted detection class.
-
-    Integer values index device tensors, so the order is part of the interface.
-    """
+    """Detection roles; integer values index device tensors."""
 
     OPENING_CANDIDATE = 0
     PERSON = 1
@@ -40,9 +37,11 @@ class PromptVocabulary:
             (
                 PromptSpec("open window", opening),
                 PromptSpec("open doorway", opening),
+                PromptSpec("doorway", opening),
                 PromptSpec("broken window", opening),
                 PromptSpec("building entrance", opening),
                 PromptSpec("glass window", opening),
+                PromptSpec("open garage door", opening),
                 PromptSpec("person", DetectionRole.PERSON),
             )
         )

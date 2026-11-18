@@ -10,7 +10,7 @@ import torch
 
 YOLO_POSE_MODEL_PATH = Path("/home/ubuntu/yolo26n-pose.pt")
 YOLO_DETECT_MODEL_PATH = Path("/home/ubuntu/yolo26n.pt")
-FACE_KEYPOINTS = (0, 1, 2, 3, 4)  # nose, left/right eye, left/right ear
+FACE_KEYPOINTS = (0, 1, 2, 3, 4)
 
 
 def _prefer_environment_filelock() -> None:
@@ -21,9 +21,6 @@ def _prefer_environment_filelock() -> None:
     except ImportError:
         return
     if not hasattr(filelock, "AsyncFileLock"):
-        # Ultralytics imports this for asynchronous dataset conversion. Local
-        # checkpoint inference never enters that path, so the synchronous lock
-        # is a compatible stand-in and avoids modifying Isaac Sim's environment.
         filelock.AsyncFileLock = filelock.FileLock
 
 

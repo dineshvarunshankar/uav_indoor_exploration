@@ -1,6 +1,4 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 import math
 
@@ -23,9 +21,6 @@ from . import mdp
 from uav_indoor.assets.starling_2.starling_2 import STARLING2_CFG
 
 
-##
-# Scene definition
-##
 
 
 @configclass
@@ -42,13 +37,11 @@ class UavHoverSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=2000.0),
     )
 
-    # robot spawned ~1 m above ground (reset event randomizes around this)
     robot: ArticulationCfg = STARLING2_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=STARLING2_CFG.init_state.replace(pos=(0.0, 0.0, 0.1)),
     )
 
-    # contact sensor - crash termination on ground/self contact
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*",
         history_length=3,
@@ -57,9 +50,6 @@ class UavHoverSceneCfg(InteractiveSceneCfg):
     )
 
 
-##
-# MDP settings
-##
 
 
 @configclass
@@ -74,13 +64,8 @@ class ActionsCfg:
         v_max_z=1.0,
         yaw_max=math.pi,
         motor_scale=1.0,
-        # randomize=True, #motor_tau, thrust scale, action delay
-        # max_action_delay_steps=2,
         randomize=False,
         max_action_delay_steps=0,
-        # tau=0.05 with the 120 Hz sim rate loop is attitude-unstable (grows a
-        # +-15 deg hover wobble that sheds lift); 0.02 is stable and offsets the
-        # discretization lag that the real 1 kHz PX4 rate loop does not have
         motor_tau=0.02,
     )
 
@@ -94,20 +79,13 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.03))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
 
-        # projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
         rotation = ObsTerm(func=mdp.base_rotation_6d, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
 
-        #position
-        #base_pos = ObsTerm(func=mdp.base_pos, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
 
-        #position errors
         x_error_yaw = ObsTerm(func=mdp.hover_x_error_yaw, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
         y_error_yaw = ObsTerm(func=mdp.hover_y_error_yaw, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
-        # x_error_body = ObsTerm(func=mdp.hover_x_error_body, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
-        # y_error_body = ObsTerm(func=mdp.hover_y_error_body, noise=GaussianNoiseCfg(mean=0.0, std=0.01))
         height_error = ObsTerm(func=mdp.hover_height_error, noise=GaussianNoiseCfg(mean=0.0, std=0.05))
         yaw_error = ObsTerm(func=mdp.hover_yaw_error, noise=GaussianNoiseCfg(mean=0.0, std=0.02))
-        #last action
         last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self) -> None:
@@ -119,45 +97,31 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Reset / startup events (incl. domain randomization for sim-to-real)."""
+    """Reset / startup events (incl."""
 
-    # sample a new commanded hover height each episode (and at startup so obs is valid)
     set_hover_target_startup = EventTerm(
         func=mdp.reset_hover_target,
         mode="startup",
-        # params={"height_range": (0.75, 5.0)},
         params={"height_range": (2.0, 2.0)},
     )
     set_hover_target_reset = EventTerm(
         func=mdp.reset_hover_target,
         mode="reset",
-        # params={"height_range": (0.75, 5.0)},
         params={"height_range": (2.0, 2.0)},
     )
 
-    # randomized initial pose/velocity around the spawn (offsets from default root state)
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "pose_range": {
-                # "z": (0.1, 0.5),            # spawn
-                # "roll": (-0.1745, 0.1745),  
-                # "pitch": (-0.1745, 0.1745),
-                # "yaw": (-3.14159, 3.14159),
                 "z": (0.0, 0.1),
                 "roll": (-0.0, 0.0),
                 "pitch": (-0.0, 0.0),
                 "yaw": (-3.14159, 3.14159),
             },
             "velocity_range": {
-                # "x": (-0.5, 0.5),
-                # "y": (-0.5, 0.5),
-                # "z": (-0.25, 0.25),
-                # "roll": (-0.5, 0.5),
-                # "pitch": (-0.5, 0.5),
-                # "yaw": (-0.2, 0.2),
                 "x": (-0.0, 0.0),
                 "y": (-0.0, 0.0),
                 "z": (-0.0, 0.0),
@@ -174,15 +138,12 @@ class EventCfg:
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
-    # sim-to-real: per-episode total-mass spread (pairs with motor-lag / thrust-scale
-    # randomization that lives in the PX4 velocity action term)
     randomize_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "mass_distribution_params": (1.0, 1.0),
-            # "mass_distribution_params": (1.0, 1.0),
             "operation": "scale",
             "distribution": "uniform",
             "recompute_inertia": True,
@@ -210,7 +171,6 @@ class RewardsCfg:
     height_asymmetric_rbf = RewTerm(
         func=mdp.hover_height_asymmetric_rbf,
         weight=10.0,
-        # params={"below_std": 0.8, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
         params={"below_std": 0.3, "above_std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
     )
     climb_when_below = RewTerm(
@@ -240,7 +200,6 @@ class RewardsCfg:
     )
     yaw_tracking = RewTerm(
         func=mdp.episode_yaw_tracking,
-        # weight=0.3,
         weight=1.5,
         params={"std": 0.3, "asset_cfg": SceneEntityCfg("robot")},
     )
@@ -261,57 +220,13 @@ class RewardsCfg:
         },
     )
 
-    # --- previous reward set (kept for reference) ---
-    # alive = RewTerm(func=mdp.is_alive, weight=1.0)
-    # track_x = RewTerm(func=mdp.hold_x, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
-    # track_y = RewTerm(func=mdp.hold_y, weight=2.0, params={"std": 0.5, "asset_cfg": SceneEntityCfg("robot")})
-    # track_z = RewTerm(func=mdp.hold_z, weight=2.0, params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")})
-    # flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-0.1)
-    # base_ang_vel = RewTerm(func=mdp.base_ang_vel_l2, weight=-0.05)
-    # action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-    # action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
-    # episode_yaw = RewTerm(
-    #     func=mdp.episode_yaw_tracking,
-    #     weight=1.0,
-    #     params={"std": 1.0, "asset_cfg": SceneEntityCfg("robot")},
-    # )
-    # crash_penalty = RewTerm(
-    #     func=mdp.illegal_contact,
-    #     weight=-20.0,
-    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
-    # )
 
-    # height_tracking = RewTerm(
-    #     func=mdp.hover_height_tracking,
-    #     weight=10.0,
-    #     params={"std": 0.2, "asset_cfg": SceneEntityCfg("robot")},
-    # )
-    # height_climb = RewTerm(
-    #     func=mdp.hover_height_climb,
-    #     weight=0.5,
-    #     params={"height_tol": 0.25, "v_cap": 1.0, "asset_cfg": SceneEntityCfg("robot")},
-    # )
-    # height_overshoot = RewTerm(
-    #     func=mdp.hover_height_overshoot,
-    #     weight=-2.0,
-    #     params={"asset_cfg": SceneEntityCfg("robot")},
-    # )
-    # xy_tracking = RewTerm(
-    #     func=mdp.episode_xy_tracking,
-    #     weight=10.0,
-    #     params={"std": 0.2, "asset_cfg": SceneEntityCfg("robot")},
-    # )
-    # horizontal_velocity = RewTerm(func=mdp.horizontal_velocity_l2, weight=-0.05)
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # crash = DoneTerm(
-    #     func=mdp.illegal_contact,
-    #     params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*")},
-    # )
     crash = DoneTerm(
         func=mdp.crashed_after_takeoff,
         params={
@@ -326,15 +241,10 @@ class TerminationsCfg:
         params={"limit_angle": 1.0, "asset_cfg": SceneEntityCfg("robot")},  # ~57 deg
     )
 
-##
-# Environment configuration
-##
 
 @configclass
 class UavHoverEnvCfg(ManagerBasedRLEnvCfg):
-    # Scene: per-env spacing with a shared ground plane; many parallel envs
     scene: UavHoverSceneCfg = UavHoverSceneCfg(num_envs=1024, env_spacing=2.5)
-    # MDP settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
@@ -345,8 +255,6 @@ class UavHoverEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         self.decimation = 2
         self.episode_length_s = 10.0
-        # viewer
         self.viewer.eye = (4.0, 0.0, 3.0)
-        # simulation: 1/120 * decimation 2 -> ~60 Hz control
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

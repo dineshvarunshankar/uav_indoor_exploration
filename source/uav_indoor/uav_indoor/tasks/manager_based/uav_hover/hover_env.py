@@ -8,14 +8,7 @@ from .mdp.events import get_episode_xy_ref, get_episode_yaw_ref, get_hover_targe
 
 
 class UavHoverEnv(ManagerBasedRLEnv):
-    """Hover env that logs station-keeping eval metrics every step for rsl_rl/wandb.
-
-    Adds to extras["log"], averaged over envs:
-      Eval/hover_success - fraction within height_tol AND xy_tol AND yaw_tol
-      Eval/height_err_m  - mean |commanded height - current height| (m)
-      Eval/xy_err_m      - mean ||spawn xy - current xy|| (m)
-      Eval/yaw_err_rad   - mean |episode heading - current yaw| (rad)
-    """
+    """Hover env that logs station-keeping eval metrics every step for rsl_rl/wandb."""
 
     height_tol: float = 0.25
     xy_tol: float = 0.25
@@ -34,7 +27,6 @@ class UavHoverEnv(ManagerBasedRLEnv):
         xy_err = torch.norm(get_episode_xy_ref(self) - xy, dim=-1)
         _, _, yaw_now = euler_xyz_from_quat(asset.data.root_quat_w)
         yaw_err = torch.abs(wrap_to_pi(get_episode_yaw_ref(self) - wrap_to_pi(yaw_now)))
-        # success = ((height_err < self.height_tol) & (xy_err < self.xy_tol)).float()
         success = (
             (height_err < self.height_tol)
             & (xy_err < self.xy_tol)

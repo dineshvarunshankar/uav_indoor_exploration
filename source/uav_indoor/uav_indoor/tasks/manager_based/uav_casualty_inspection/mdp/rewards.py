@@ -35,11 +35,7 @@ def reference_tracking_exp(
     std: float = 12.0,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Bonus that peaks on the reference and decays to zero, never a survival cost.
-
-    Long-range approach gradient comes from :func:`local_reference_progress`; this term is
-    the standing bonus for holding station, so leaving never beats staying.
-    """
+    """Reward proximity to the reference."""
 
     position = env.scene[asset_cfg.name].data.root_pos_w
     distance = torch.linalg.vector_norm(env.mission_reference.position_w - position, dim=-1)
@@ -142,11 +138,7 @@ def mission_done(env: ManagerBasedEnv) -> torch.Tensor:
 
 
 def mission_failed(env: ManagerBasedEnv) -> torch.Tensor:
-    """End the episode when the supervisor gives up.
-
-    ``mission_failure`` returns a latched flag, so without this the term pays its penalty
-    on every remaining step. One failure would then cost far more than any success.
-    """
+    """End the episode when the supervisor gives up."""
 
     return env.supervisor.failed
 
@@ -157,9 +149,7 @@ def out_of_bounds(
     max_height_m: float = 30.0,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """No floor test, and a high ceiling. The drone must pick its own height: high to
-    transit over obstacles, low to inspect. The ceiling only ends a runaway episode, and
-    ``collision`` catches real ground contact, which is the event that matters."""
+    """Terminate above the altitude ceiling."""
 
     position = env.scene[asset_cfg.name].data.root_pos_w - env.scene.env_origins
     return (torch.linalg.vector_norm(position[:, :2], dim=-1) > radius_m) | (

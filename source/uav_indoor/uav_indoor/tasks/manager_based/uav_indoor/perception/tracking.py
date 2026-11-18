@@ -12,13 +12,10 @@ from .yoloe import DetectionBatch
 TRACK_FEATURES = 11  # 8 state values, confidence, age, validity
 
 
-@dataclass(frozen=True)
+# Mutable Hydra configuration.
+@dataclass
 class TrackerCfg:
-    """Filter and association constants for one role.
-
-    PROVISIONAL and deliberately optimistic. Measure R from projected truth boxes, fit Q
-    from truth box dynamics, then confirm with a normalized-innovation test.
-    """
+    """Filter and association constants for one role."""
 
     max_tracks: int = 8
     process_noise: float = 6.0e-5
@@ -28,12 +25,7 @@ class TrackerCfg:
 
     @classmethod
     def for_openings(cls) -> TrackerCfg:
-        """An opening does not move. Its box moves only because the aircraft moves.
-
-        At a scan station the aircraft holds position, so the box is almost static and the
-        process noise covers attitude jitter alone. Openings are sparse on a facade, so a
-        wide gate is safe. A long life keeps a candidate through several missed frames.
-        """
+        """Return opening-track configuration."""
 
         return cls(
             process_noise=1.0e-5,
@@ -44,21 +36,13 @@ class TrackerCfg:
 
     @classmethod
     def for_people(cls) -> TrackerCfg:
-        """A person walks, so the process noise covers their acceleration.
-
-        People stand close together, so the gate stays tighter than for openings. An
-        identity swap would restart the 10-second observation hold.
-        """
+        """Return person-track configuration."""
 
         return cls()
 
 
 class BatchedPromptBoxKalman:
-    """Constant-velocity Kalman filter over normalized ``cx, cy, w, h`` boxes.
-
-    One instance holds one mission role, so opening and person identifiers stay
-    separate and no detection can associate across roles.
-    """
+    """Constant-velocity Kalman filter over normalized ``cx, cy, w, h`` boxes."""
 
     def __init__(
         self,
@@ -90,6 +74,11 @@ class BatchedPromptBoxKalman:
     @property
     def valid(self) -> torch.Tensor:
         return (self.track_id >= 0) & (self.age_s <= self.cfg.max_age_s)
+
+    def confirmed(self, min_hits: int = 2) -> torch.Tensor:
+        """Return valid tracks with sufficient observations."""
+
+        return self.valid & (self.hits >= min_hits)
 
     def reset(self, env_ids: torch.Tensor | None = None) -> None:
         if env_ids is None:
@@ -126,12 +115,7 @@ class BatchedPromptBoxKalman:
         boxes_xywhn: torch.Tensor,
         valid: torch.Tensor,
     ) -> torch.Tensor:
-        """Greedy nearest-neighbour association. Returns a detection index per slot, or -1.
-
-        Every round takes the best remaining pair in each environment at the same time.
-        The round count is bounded by the track count, never by the environment count, and
-        no operation reads a value back to the host.
-        """
+        """Greedy nearest-neighbour association. Returns a detection index per slot, or -1."""
 
         detections = boxes_xywhn.shape[1]
         slot_range = torch.arange(self.max_tracks, device=self.device)
@@ -293,3 +277,29 @@ class PromptBoxTrackers:
         """Return both role blocks as one flat actor feature vector."""
 
         return torch.cat((self.openings.observation().flatten(1), self.people.observation().flatten(1)), dim=-1)
+
+
+def select_active_box(
+    boxes_xywhn: torch.Tensor,
+    track_id: torch.Tensor,
+    valid: torch.Tensor,
+    active_track_id: torch.Tensor,
+    stored_box_xywhn: torch.Tensor,
+    target_valid: torch.Tensor,
+    reacquire_gate: float = 0.08,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Select the active opening box by track ID or normalized image distance."""
+
+    same_id = valid & (track_id == active_track_id[:, None])
+    centre_gap = (boxes_xywhn[..., :2] - stored_box_xywhn[:, None, :2]).norm(dim=-1)
+    near_stored = valid & (centre_gap <= reacquire_gate)
+
+    # Prioritize matching track IDs.
+    ranked = torch.where(same_id, torch.full_like(centre_gap, -1.0), centre_gap)
+    ranked = torch.where(same_id | near_stored, ranked, torch.full_like(centre_gap, torch.inf))
+    best = ranked.min(dim=1)
+
+    found = torch.isfinite(best.values) & target_valid
+    chosen = boxes_xywhn.gather(1, best.indices[:, None, None].expand(-1, 1, boxes_xywhn.shape[-1]))
+    chosen = chosen.squeeze(1)
+    return torch.where(found[:, None], chosen, torch.zeros_like(chosen)), found

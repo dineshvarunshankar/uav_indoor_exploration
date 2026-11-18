@@ -81,12 +81,7 @@ class PX4VelocityAction(ActionTerm):
         return self._shield_total
 
     def _apply_shield(self, actions: torch.Tensor) -> torch.Tensor:
-        """Clamp commands that fly into something. Three guards, three sensors.
-
-        Relative disparity has no metric scale, and ``normalize_disparity`` rescales every
-        frame to [0, 1]. So the obstacle guard compares the image centre against the rest
-        of the frame instead of against a fixed number.
-        """
+        """Clamp commands that fly into something."""
 
         safe = actions.clone()
         self._shield_intervened.zero_()
@@ -98,12 +93,10 @@ class PX4VelocityAction(ActionTerm):
         height, width = depth.shape[-2:]
         centre = depth[:, height // 3 : 2 * height // 3, width // 3 : 2 * width // 3]
 
-        # Obstacle guard: is the centre nearer than the rest of the view?
         centre_near = torch.quantile(centre.flatten(1), self.cfg.shield_depth_quantile, dim=1)
         frame_near = depth.flatten(1).median(dim=1).values
         obstacle = (centre_near - frame_near) > self.cfg.shield_near_margin
 
-        # Person guard: box height gives a real range, so disparity is not needed here.
         person = perception.nearest_track_range_m < self.cfg.shield_min_person_range_m
 
         forward = safe[:, 0] > 0.0
@@ -117,7 +110,6 @@ class PX4VelocityAction(ActionTerm):
         )
         safe[:, 1] += torch.where(blocked, open_side * self.cfg.shield_lateral_speed, torch.zeros_like(open_side))
 
-        # Descent guard: a forward camera cannot see the ground, so use estimator altitude.
         agl = self._asset.data.root_pos_w[:, 2] - self._env.scene.env_origins[:, 2]
         sinking = (agl < self.cfg.shield_min_height_m) & (safe[:, 2] < 0.0)
         safe[:, 2] = torch.where(sinking, torch.zeros_like(safe[:, 2]), safe[:, 2])
@@ -148,10 +140,6 @@ class PX4VelocityAction(ActionTerm):
             ),
         )
         self._safe_actions[:] = self._apply_shield(self._processed_actions)
-        # Integrate the yaw rate from MEASURED yaw, not from the previous setpoint. A free
-        # integrator accumulates a standing yaw error, and the yaw allocation is ~5x off
-        # (k_torque/k_thrust = 0.0096 m vs CA_ROTOR*_KM = 0.05), so that error becomes a
-        # mis-scaled yaw torque that steals roll/pitch margin from the mixer.
         _, _, measured_yaw = euler_xyz_from_quat(self._asset.data.root_quat_w)
         self._yaw_setpoint[:] = wrap_to_pi(measured_yaw + self._safe_actions[:, 3] * dt)
 
@@ -167,7 +155,6 @@ class PX4VelocityAction(ActionTerm):
 
         velocity_w = quat_apply(quaternion, self._safe_actions[:, :3])
         setpoint = torch.cat((velocity_w, self._yaw_setpoint[:, None]), dim=-1)
-        # rlPx4 runs on CPU; move the whole controller input across in one transfer
         host = torch.cat(
             (
                 data.root_pos_w,
@@ -270,11 +257,6 @@ class PX4VelocityActionCfg(ActionTermCfg):
     motor_spin_sign: tuple[float, float, float, float] = (1.0, 1.0, -1.0, -1.0)
     motor_torque_sign: tuple[float, float, float, float] = (-1.0, -1.0, 1.0, 1.0)
     motor_scale: float = 1.0
-    # tau=0.05 with the 120 Hz sim rate loop is attitude-unstable (grows a
-    # +-15 deg hover wobble that sheds lift); 0.02 is stable and offsets the
-    # discretization lag that the real 1 kHz PX4 rate loop does not have.
-    # Same override as uav_hover. This lag lives in apply_actions, so it is
-    # independent of the 10 Hz policy rate.
     motor_tau: float = 0.02
     visual_spin_joints: bool = True
     in_air_height: float = 0.25

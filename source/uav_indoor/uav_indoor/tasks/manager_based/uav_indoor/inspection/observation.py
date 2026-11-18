@@ -1,8 +1,4 @@
-"""Primary-person observation timing for one opening.
-
-The mission observes one confirmed person for ten accumulated seconds. The timer counts
-only valid time, so it pauses instead of resetting when the evidence weakens.
-"""
+"""Primary-person observation timing for one opening."""
 
 from __future__ import annotations
 
@@ -13,14 +9,10 @@ import torch
 WITNESS_FEATURES = 6  # identifier, last-seen time, confidence, and box centre and size
 
 
-@dataclass(frozen=True)
+# Mutable Hydra configuration.
+@dataclass
 class ObservationCfg:
-    """Timing and validity constants.
-
-    PROVISIONAL. ``centre_tolerance`` is horizontal only, because the aircraft centres a
-    person by yaw alone. Vertical centring would need forward or vertical motion, which
-    the first version does not use.
-    """
+    """Observation timing and horizontal centering thresholds."""
 
     hold_target_s: float = 10.0
     centre_tolerance: float = 0.15
@@ -145,12 +137,7 @@ class PrimaryPersonObservation:
         time_s: float,
         enabled: torch.Tensor,
     ) -> None:
-        """Keep a record of the other visible people. No second hold starts for them.
-
-        The table holds the first ``max_witnesses`` distinct people. A later person is
-        dropped rather than replacing a recorded one, because this is a record of who was
-        present, not a ranking.
-        """
+        """Keep a record of the other visible people. No second hold starts for them."""
 
         other = other & enabled[:, None]
         known = (self.witness_id[:, :, None] == track_id[:, None, :]) & other[:, None, :]

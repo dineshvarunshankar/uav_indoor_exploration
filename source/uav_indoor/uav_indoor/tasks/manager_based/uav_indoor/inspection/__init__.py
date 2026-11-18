@@ -1,8 +1,4 @@
-"""Deterministic mission state for building-opening inspection.
-
-These modules hold device tensors with a leading environment dimension and import no
-Isaac Lab symbols, so they load and test without a simulator.
-"""
+"""Deterministic mission state for building-opening inspection."""
 
 from .ledger import LedgerCfg, OpeningLedger, OpeningStatus
 from .mission import (
@@ -10,9 +6,17 @@ from .mission import (
     BuildingMissionCfg,
     BuildingMissionSupervisor,
     MissionPhase,
-    MissionStage,
     MissionReference,
+    MissionStage,
     wrap_pi,
 )
 from .observation import WITNESS_FEATURES, ObservationCfg, PrimaryPersonObservation
+from .proposal_search import ProposalSearchRegistry, ProposalSearchStatus, project_exterior_station
 from .recovery import BREADCRUMB_FIELDS, BreadcrumbBuffer, RecoveryCfg
+from .takeoff import (
+    PremissionTakeoff,
+    PremissionTakeoffExecutor,
+    TakeoffCfg,
+    TakeoffExecutorCfg,
+    TakeoffStage,
+)

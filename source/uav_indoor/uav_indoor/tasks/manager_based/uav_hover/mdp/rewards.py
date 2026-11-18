@@ -135,7 +135,6 @@ def base_ang_vel_l2(
     return torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
 
 
-# --- revamped hover rewards (asymmetric height RBF, climb, damping, yaw-frame xy) ---
 
 
 def hover_height_asymmetric_rbf(
@@ -144,10 +143,7 @@ def hover_height_asymmetric_rbf(
     above_std: float = 0.3,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Asymmetric height tracking: tolerant below target, sharper above target.
-
-    e = target_z - z (positive when below target).
-    """
+    """Asymmetric height tracking: tolerant below target, sharper above target."""
     _, z_err, _ = _height_state(env, asset_cfg)
     below = z_err >= 0.0
     below_reward = torch.exp(-torch.square(z_err / below_std))
@@ -207,11 +203,7 @@ def illegal_contact_takeoff_aware(
     min_flight_height: float = 0.25,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Crash penalty gated by height: ground contact before first takeoff is ignored.
-
-    Latches per-env once z > min_flight_height so a crash-to-ground later in the
-    episode still counts, even though the contact itself happens back near z = 0.
-    """
+    """Crash penalty gated by height: ground contact before first takeoff is ignored."""
     asset: Articulation = env.scene[asset_cfg.name]
     z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
     airborne_flag = get_airborne_flag(env)
@@ -227,12 +219,7 @@ def crashed_after_takeoff(
     min_flight_height: float = 0.25,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Termination: contact after the env has been airborne (bool tensor).
-
-    Shares the airborne latch with illegal_contact_takeoff_aware so the crash
-    penalty and crash termination always agree; pre-takeoff ground contact
-    never terminates.
-    """
+    """Termination: contact after the env has been airborne (bool tensor)."""
     asset: Articulation = env.scene[asset_cfg.name]
     z = asset.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
     airborne_flag = get_airborne_flag(env)

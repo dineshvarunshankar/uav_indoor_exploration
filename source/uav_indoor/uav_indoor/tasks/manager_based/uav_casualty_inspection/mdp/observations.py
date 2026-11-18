@@ -56,8 +56,7 @@ def mission_phase(env: ManagerBasedEnv, phase_count: int = 7) -> torch.Tensor:
 
 
 def mission_status(env: ManagerBasedEnv) -> torch.Tensor:
-    """Mission state the phase one-hot cannot express. ``recording`` is omitted: it is
-    exactly ``phase == RECORD`` and already carried by :func:`mission_phase`."""
+    """Mission state the phase one-hot cannot express."""
 
     return torch.stack(
         (

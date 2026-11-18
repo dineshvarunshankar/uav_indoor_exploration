@@ -50,12 +50,7 @@ def apply_wind(
     torque_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> None:
-    """Apply per-axis wind force and torque. Isaac Lab wind uses a single (min, max) pair.
-
-    Not used. ``EventsCfg.wind`` is None. This function picks a force directly, so the
-    force does not depend on drone velocity. Real drag does. A WindField class replaces
-    this later.
-    """
+    """Apply per-axis wind force and torque."""
 
     asset: Articulation = env.scene[asset_cfg.name]
     if env_ids is None:
@@ -78,9 +73,6 @@ def apply_wind(
         ),
         dim=-1,
     )
-    # is_global defaults to False, which applies the wrench in the body frame -- a thrust
-    # bolted to the airframe that rotates with it, so tilting to counteract it tilts the
-    # disturbance too and the correction diverges. Wind is a world-frame force.
     asset.permanent_wrench_composer.set_forces_and_torques(
         forces=forces,
         torques=torques,

@@ -123,7 +123,7 @@ class CasualtyInspectionSceneCfg(InteractiveSceneCfg):
     )
     rgb_camera = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/body/RGB_IMX412",
-        spawn=None,  # already defined in USD (VOXL2 IMX412 hires)
+        spawn=None,
         data_types=["rgb"],
         width=640,
         height=480,
@@ -245,21 +245,12 @@ class EventsCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            # Off. This scales every body on its own, so the four rotors end up with
-            # different masses and the centre of mass shifts. uav_hover also runs at
-            # (1.0, 1.0). Turn it back on as (0.97, 1.03) on body_names="body" once a
-            # policy flies, so it models a payload change and not a bent airframe.
             "mass_distribution_params": (1.0, 1.0),
             "operation": "scale",
             "distribution": "uniform",
             "recompute_inertia": True,
         },
     )
-    # Wind is off. The drone cannot reject it yet. With wind on, 7 of 8 drones fall
-    # within 30 s. With wind off, 8 of 8 hold position for 30 s.
-    # apply_wind picks a random force directly, so the force does not depend on drone
-    # speed. That is not how drag works. A WindField class replaces it later: it samples
-    # a wind velocity and computes drag from the relative velocity.
     wind = None
 
 
@@ -270,9 +261,6 @@ class RewardsCfg:
     heading = RewTerm(func=mdp.reference_heading_exp, weight=1.0, params={"std": 1.2})
     clearance = RewTerm(func=mdp.clearance_ttc, weight=-2.0)
     phase_progress = RewTerm(func=mdp.mission_phase_progress, weight=10.0)
-    # Seeing the casualty outweighs obeying the servo, so the supervisor's inspection
-    # height is a hint and the camera decides. Both terms are gated to the inspection
-    # phases, so the approach is still driven by tracking and progress.
     visibility = RewTerm(func=mdp.target_visibility, weight=2.0)
     face = RewTerm(func=mdp.face_acquisition, weight=3.0)
     staging = RewTerm(func=mdp.staging_accuracy, weight=2.0)
@@ -299,8 +287,6 @@ class TerminationsCfg:
     )
     out_of_bounds = DoneTerm(func=mdp.out_of_bounds)
     mission_failed = DoneTerm(func=mdp.mission_failed)
-    # No mission_done termination: completion pays per step while DONE, so ending the
-    # episode on success would forfeit that stream and make stalling the better policy.
 
 
 @configclass
